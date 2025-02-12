@@ -1,43 +1,16 @@
 <?xml version="1.0" ?>
 <sdf version="1.6">
-  <model name="tag">
-    <pose>0 0 0 0 0 0</pose>
+  <model name="tag{{ tag_id }}">
+    <pose>{{ tag_pose[0] }} {{ tag_pose[1] }} {{ tag_pose[2] }} 0 0 0</pose>
     <static>0</static>
     <link name="link">
-      <pose>0 0 0 0 0 0</pose>
-      <inertial>
-        <pose>0 0 0 0 0 0</pose>
-        <mass>0.015</mass>
-        <inertia>
-          <ixx>1e-05</ixx>
-          <ixy>0</ixy>
-          <ixz>0</ixz>
-          <iyy>1e-05</iyy>
-          <iyz>0</iyz>
-          <izz>1e-05</izz>
-        </inertia>
-      </inertial>
-
-      <visual name="visual_tag">
-        <geometry>
-          <box>
-            <size>0.01 0.01 0.05</size>
-          </box>
-        </geometry>
-        <material>
-          <ambient>0 0 1 1</ambient>
-        </material>
-      </visual>
+      <visual name="tag_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.5</size>
+            </box>
+          </geometry>
+        </visual>
     </link>
-
-    <plugin name='libgtec_uwb_plugin' filename='libgtec_uwb_plugin.so'>
-      <update_rate>25</update_rate>
-      <nlosSoftWallWidth>0.3</nlosSoftWallWidth>
-      <tag_z_offset>1.5</tag_z_offset>
-      <tag_link>link</tag_link>
-      <anchor_prefix>uwb_anchor</anchor_prefix>
-      <all_los>false</all_los>
-      <tag_id>{{ tag_id }}</tag_id>
-    </plugin>
   </model>
 </sdf>
