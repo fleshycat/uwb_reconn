@@ -12,7 +12,7 @@ else()
   add_definitions(-std=c++11)
 endif()
 
-project(gtec_msgs)
+project(uwb_msgs)
 
 if(DETECTED_ROS1)
   ## Find catkin macros and libraries

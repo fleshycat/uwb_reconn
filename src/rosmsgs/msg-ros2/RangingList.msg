@@ -1,1 +1,1 @@
-gtec_msgs/Ranging[] anchors
+uwb_msgs/Ranging[] anchors
