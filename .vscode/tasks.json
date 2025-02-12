@@ -1,0 +1,123 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Launch iris with empty world",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "robot_in_gazebo_world_run.launch.py",
+                "world_type:=empty",
+                "num_drone:=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Launch iris with first world",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "robot_in_gazebo_world_run.launch.py",
+                "world_type:=first",
+                "num_drone:=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Launch iris with second world",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "robot_in_gazebo_world_run.launch.py",
+                "world_type:=second",
+                "num_drone:=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Launch iris with third world",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "robot_in_gazebo_world_run.launch.py",
+                "world_type:=third",
+                "num_drone:=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Launch iris with fourth world",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "robot_in_gazebo_world_run.launch.py",
+                "world_type:=fourth",
+                "num_drone:=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+        
+    ]
+}
