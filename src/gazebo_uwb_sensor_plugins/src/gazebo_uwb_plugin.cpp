@@ -30,8 +30,8 @@ SOFTWARE.
 #include <gazebo/sensors/Noise.hh>
 #include <boost/bind.hpp>
 #include "rclcpp/rclcpp.hpp"
-#include "gtec_msgs/msg/ranging.hpp"
-#include "gtec_msgs/msg/ranging_list.hpp"
+#include "uwb_msgs/msg/ranging.hpp"
+#include "uwb_msgs/msg/ranging_list.hpp"
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include "visualization_msgs/msg/marker_array.hpp"
@@ -189,7 +189,6 @@ namespace gazebo
             {16.86, 235.51,  16.12},
             {16.385, 237.4, 16.127}
         };
-
 
         double rssMean[141][3] =
         {
@@ -627,7 +626,6 @@ namespace gazebo
             {-224.83, -224.83}
         };
 
-
         enum LOSType
         {
             LOS,
@@ -666,8 +664,8 @@ namespace gazebo
             this->world = _parent->GetWorld();
             this->SetUpdateRate(_sdf->Get<double>("update_rate"));
             this->nlosSoftWallWidth = 0.25;
-            this->tagZOffset = 0;
-            this->tagId = 0;
+            this->anchorZOffset = 0;
+            this->anchorId = 0;
             this->maxDBDistance = 14;
             this->stepDBDistance = 0.1;
             this->allBeaconsAreLOS = false;
@@ -679,14 +677,14 @@ namespace gazebo
                 this->allBeaconsAreLOS = _sdf->Get<double>("all_los");
             }
 
-            if (_sdf->HasElement("tag_id"))
+            if (_sdf->HasElement("anchor_id"))
             {
-                this->tagId = _sdf->Get<double>("tag_id");
+                this->anchorId = _sdf->Get<double>("anchor_id");
             }
 
-            if (_sdf->HasElement("tag_z_offset"))
+            if (_sdf->HasElement("anchor_z_offset"))
             {
-                this->tagZOffset = _sdf->Get<double>("tag_z_offset");
+                this->anchorZOffset = _sdf->Get<double>("anchor_z_offset");
             }
 
             if (_sdf->HasElement("nlosSoftWallWidth"))
@@ -694,53 +692,53 @@ namespace gazebo
                 this->nlosSoftWallWidth = _sdf->Get<double>("nlosSoftWallWidth");
             }
 
-            if (_sdf->HasElement("tag_link"))
+            if (_sdf->HasElement("anchor_link"))
             {
-                std::string tag_link = _sdf->Get<std::string>("tag_link");
-                this->tagLink = _parent->GetLink(tag_link);
+                std::string anchor_link = _sdf->Get<std::string>("anchor_link");
+                this->anchorLink = _parent->GetLink(anchor_link);
 
                 RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Parent name: %s ChildCount: %d", _parent->GetName().c_str(), _parent->GetChildCount());
-                if (this->tagLink == nullptr)
+                if (this->anchorLink == nullptr)
                 {
                     std::vector<physics::LinkPtr> links = _parent->GetLinks();
                     for (size_t i = 0; i < links.size(); ++i)
                     {
                         RCLCPP_INFO(node_->get_logger(), "Link[%zu]: %s", i, links[i]->GetName().c_str());
                     }
-                    RCLCPP_INFO(node_->get_logger(), "UWB Plugin Tag link Is NULL We use The Parent As Reference");
+                    RCLCPP_INFO(node_->get_logger(), "UWB Plugin tag link Is NULL We use The Parent As Reference");
                     this->useParentAsReference = true;
                 }
             }
 
-            if (_sdf->HasElement("anchor_prefix"))
+            if (_sdf->HasElement("tag_prefix"))
             {
-                this->anchorPrefix = _sdf->Get<std::string>("anchor_prefix");
+                this->tagPrefix = _sdf->Get<std::string>("tag_prefix");
             }
             else
             {
-                this->anchorPrefix = "uwb_anchor";
+                this->tagPrefix = "uwb_tag";
             }
 
-            RCLCPP_INFO(node_->get_logger(), "UWB Plugin is running. Tag %d", this->tagId);
+            RCLCPP_INFO(node_->get_logger(), "UWB Plugin is running. Tag %d", this->anchorId);
             RCLCPP_INFO(node_->get_logger(), "UWB Plugin All parameters loaded");
 
             this->lastUpdateTime = common::Time(0.0);
 
-            std::string topic_prefix_uwb = "/gtec/toa/id_" + std::to_string(this->tagId);
+            std::string topic_prefix_uwb = "/uwb/anchor_" + std::to_string(this->anchorId);
             std::string topicRanging = topic_prefix_uwb + "/ranging";
 
             RCLCPP_INFO(node_->get_logger(), "UWB Plugin Ranging Publishing in %s", topicRanging.c_str());
 
             /* stringStream.str("");
             stringStream.clear();
-            stringStream << "/gtec/toa/anchors" << this->tagId;*/
-            std::string topicAnchors = topic_prefix_uwb + "/anchors";
+            stringStream << "/gtec/toa/anchors" << this->anchorId;*/
+            std::string topicAnchor = topic_prefix_uwb + "/marker";
             
-            RCLCPP_INFO(node_->get_logger(), "UWB Plugin Anchors Position Publishing in %s", topicAnchors.c_str());
+            //RCLCPP_INFO(node_->get_logger(), "UWB Plugin Anchors Position Publishing in %s", topicAnchors.c_str());
 
-            this->gtecUwbPub = node_->create_publisher<gtec_msgs::msg::RangingList>(topicRanging, 10);
-            this->gtecAnchors = node_->create_publisher<visualization_msgs::msg::MarkerArray>(topicAnchors, 10);
-            this->tag_realPos_pub = node_->create_publisher<geometry_msgs::msg::Pose>("tag_real_pose", 10);
+            this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::Ranging>(topicRanging, 10);
+            this->uwbAnchorMarkerPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor, 10);
+            //this->tag_realPos_pub = node_->create_publisher<geometry_msgs::msg::Pose>("tag_real_pose", 10);
 
             this->firstRay = boost::dynamic_pointer_cast<physics::RayShape>(
                                     this->world->Physics()->CreateShape("ray", physics::CollisionPtr()));
@@ -761,34 +759,33 @@ namespace gazebo
             {
                 this->lastUpdateTime = _info.simTime;
 
-
-                ignition::math::Pose3d tagPose;
+                ignition::math::Pose3d anchorPose;
 
                 if (!this->useParentAsReference)
                 {
-                    tagPose = this->tagLink->WorldPose();
+                    anchorPose = this->anchorLink->WorldPose();
                 }
                 else
                 {
-                    tagPose = this->model->WorldPose();
+                    anchorPose = this->model->WorldPose();
                 }
 
-                ignition::math::Vector3d posCorrectedZ(tagPose.Pos().X(), tagPose.Pos().Y(), tagPose.Pos().Z() + this->tagZOffset);
-                tagPose.Set(posCorrectedZ, tagPose.Rot());
-                ignition::math::Vector3d currentTagPose(tagPose.Pos());
+                ignition::math::Vector3d posCorrectedZ(anchorPose.Pos().X(), anchorPose.Pos().Y(), anchorPose.Pos().Z() + this->anchorZOffset);
+                anchorPose.Set(posCorrectedZ, anchorPose.Rot());
+                ignition::math::Vector3d currentanchorPose(anchorPose.Pos());
 
                 //publish real tag pos
-                geometry_msgs::msg::Pose tag_realPOS;
-                tag_realPOS.position.x = currentTagPose.X();
-                tag_realPOS.position.y = currentTagPose.Y();
-                tag_realPOS.position.z = currentTagPose.Z();
+                // geometry_msgs::msg::Pose tag_realPOS;
+                // tag_realPOS.position.x = currentanchorPose.X();
+                // tag_realPOS.position.y = currentanchorPose.Y();
+                // tag_realPOS.position.z = currentanchorPose.Z();
 
-                this->tag_realPos_pub->publish(tag_realPOS);
+                // this->tag_realPos_pub->publish(tag_realPOS);
 
-                tf2::Quaternion q(  tagPose.Rot().X(),
-                                    tagPose.Rot().Y(),
-                                    tagPose.Rot().Z(),
-                                    tagPose.Rot().W());
+                tf2::Quaternion q(  anchorPose.Rot().X(),
+                                    anchorPose.Rot().Y(),
+                                    anchorPose.Rot().Z(),
+                                    anchorPose.Rot().W());
 
                 tf2::Matrix3x3 m(q);
                 double roll, pitch, currentYaw;
@@ -829,35 +826,38 @@ namespace gazebo
                     }
                     anglesToTest[i] = angleToTest;
                 }
+                
+                uwb_msgs::msg::Ranging rangingMsg;
+                visualization_msgs::msg::Marker anchor_marker;
 
-                visualization_msgs::msg::MarkerArray markerArray;
-                visualization_msgs::msg::MarkerArray interferencesArray;
-                this->ranging_list_msg.anchors.clear();
+                // this->ranging_list_msg.anchors.clear();
 
                 physics::Model_V models = this->world->Models();
+                
                 for (auto iter = models.begin(); iter != models.end(); ++iter)
                 {
-                    if ((*iter)->GetName().find(this->anchorPrefix) == 0)
+                    // RCLCPP_INFO(node_->get_logger(), (*iter)->GetName().c_str());
+                    if ((*iter)->GetName().find(this->tagPrefix) == 0)
                     {
-                        physics::ModelPtr anchor = *iter;
-                        std::string aidStr = anchor->GetName().substr(this->anchorPrefix.length());
-                        int aid = std::stoi(aidStr);
-                        // RCLCPP_INFO(node_->get_logger(), "Debug : ##########aid %d#######",aid);
-                        ignition::math::Pose3d anchorPose = anchor->WorldPose();
+                        physics::ModelPtr tag = *iter;
+                        std::string tag_idStr = tag->GetName().substr(this->tagPrefix.length());
+                        int tag_id = std::stoi(tag_idStr);
+
+                        // RCLCPP_INFO(node_->get_logger(), "Debug : ##########anchor_id %d#######",tag_id);
+
+                        ignition::math::Pose3d tagPose = tag->WorldPose();
                         // RCLCPP_INFO(node_->get_logger(), "Debug : anchorPose: Position(x: %f, y: %f, z: %f), Orientation(w: %f, x: %f, y: %f, z: %f)",
                         //             anchorPose.Pos().X(), anchorPose.Pos().Y(), anchorPose.Pos().Z(),
                         //             anchorPose.Rot().W(), anchorPose.Rot().X(), anchorPose.Rot().Y(), anchorPose.Rot().Z());
-                        // RCLCPP_INFO(node_->get_logger(), "Debug : tagPose: Position(x: %f, y: %f, z: %f), Orientation(w: %f, x: %f, y: %f, z: %f)",
-                        //             tagPose.Pos().X(), tagPose.Pos().Y(), tagPose.Pos().Z(),
-                        //             tagPose.Rot().W(), tagPose.Rot().X(), tagPose.Rot().Y(), tagPose.Rot().Z());
+                        
 
                         LOSType losType = LOS;
-                        double distance = tagPose.Pos().Distance(anchorPose.Pos());
+                        double distance = anchorPose.Pos().Distance(tagPose.Pos());
                         double distanceAfterRebounds = 0;
                         //RCLCPP_INFO(node_->get_logger(), "distance= %f",distance);
                         if (!allBeaconsAreLOS)
                         {
-                            //We check if a ray can reach the anchor:
+                            //We check if a ray can reach the tag:
                             double distanceToObstacleFromTag;
                             std::string obstacleName;
 
@@ -868,14 +868,14 @@ namespace gazebo
 
                             if (obstacleName.compare("") == 0)
                             {
-                                //There is no obstacle between anchor and tag, we use the LOS model
+                                //There is no obstacle between tag and tag, we use the LOS model
                                 losType = LOS;
                                 distanceAfterRebounds = distance;
                             }
                             else
                             {
 
-                                //We use a second ray to measure the distance from anchor to tag, so we can
+                                //We use a second ray to measure the distance from tag to tag, so we can
                                 //know what is the width of the walls
                                 double distanceToObstacleFromAnchor;
                                 std::string otherObstacleName;
@@ -895,7 +895,7 @@ namespace gazebo
                                 }
                                 else
                                 {
-                                    //We try to find a rebound to reach the anchor from the tag
+                                    //We try to find a rebound to reach the tag from the tag
                                     bool end = false;
 
                                     double maxDistance = 30;
@@ -918,52 +918,52 @@ namespace gazebo
                                     {
                                         currentAngle = anglesToTest[indexRay];
 
-                                        double x = currentTagPose.X() + maxDistance * cos(currentAngle);
-                                        double y = currentTagPose.Y() + maxDistance * sin(currentAngle);
-                                        double z = currentTagPose.Z();
+                                        double x = currentanchorPose.X() + maxDistance * cos(currentAngle);
+                                        double y = currentanchorPose.Y() + maxDistance * sin(currentAngle);
+                                        double z = currentanchorPose.Z();
 
                                         if (currentFloorDistance>0){
-                                            double tanAngleFloor = (startFloorDistanceCheck + stepFloor*(currentFloorDistance-1))/currentTagPose.Z();
+                                            double tanAngleFloor = (startFloorDistanceCheck + stepFloor*(currentFloorDistance-1))/currentanchorPose.Z();
                                             double angleFloor = atan(tanAngleFloor);
                                             double h = sin(angleFloor)*maxDistance;
                                             double horizontalDistance = sqrt(maxDistance*maxDistance - h*h);
 
-                                            x = currentTagPose.X() + horizontalDistance * cos(currentAngle);
-                                            y = currentTagPose.Y() + horizontalDistance * sin(currentAngle);
-                                            z = -1*(h - currentTagPose.Z());
+                                            x = currentanchorPose.X() + horizontalDistance * cos(currentAngle);
+                                            y = currentanchorPose.Y() + horizontalDistance * sin(currentAngle);
+                                            z = -1*(h - currentanchorPose.Z());
 
                                         }
 
                                         ignition::math::Vector3d rayPoint(x, y, z);
 
                                         this->firstRay->Reset();
-                                        this->firstRay->SetPoints(currentTagPose, rayPoint);
+                                        this->firstRay->SetPoints(currentanchorPose, rayPoint);
                                         this->firstRay->GetIntersection(distanceToRebound, obstacleName);
 
                                         if (obstacleName.compare("") != 0)
                                         {
                                             //RCLCPP_INFO(node_->get_logger(), "Debug : obstacleName %s", obstacleName.c_str());
-                                            ignition::math::Vector3d collisionPoint(currentTagPose.X() + distanceToRebound * cos(currentAngle), currentTagPose.Y() + distanceToRebound * sin(currentAngle), currentTagPose.Z());
+                                            ignition::math::Vector3d collisionPoint(currentanchorPose.X() + distanceToRebound * cos(currentAngle), currentanchorPose.Y() + distanceToRebound * sin(currentAngle), currentanchorPose.Z());
 
                                             if (currentFloorDistance>0){
                                                 //if (obstacleName.compare("FloorStatic)") == 0){
                                                   // ROS_INFO("TOUCHED GROUND %s - Z: %f", obstacleName.c_str(), z);   
                                                //}
-                                                collisionPoint.Set(currentTagPose.X() + distanceToRebound * cos(currentAngle), currentTagPose.Y() + distanceToRebound * sin(currentAngle), 0.0);
+                                                collisionPoint.Set(currentanchorPose.X() + distanceToRebound * cos(currentAngle), currentanchorPose.Y() + distanceToRebound * sin(currentAngle), 0.0);
                                             }
 
                                             //RCLCPP_INFO(node_->get_logger(), "Debug : collisionPoint (%f %f %f)", collisionPoint.X(), collisionPoint.Y(), collisionPoint.Z());
 
-                                            //We try to reach the anchor from here
+                                            //We try to reach the tag from here
                                             this->secondRay->Reset();
-                                            this->secondRay->SetPoints(collisionPoint, anchorPose.Pos());
+                                            this->secondRay->SetPoints(collisionPoint, tagPose.Pos());
                                             this->secondRay->GetIntersection(distanceToFinalObstacle, finalObstacleName);
 
                                             if (finalObstacleName.compare("") == 0)
                                             {
                                                 //RCLCPP_INFO(node_->get_logger(), "Debug : finalObstacleName %s", finalObstacleName.c_str());
-                                                //We reach the anchor after one rebound
-                                                distanceToFinalObstacle = anchorPose.Pos().Distance(collisionPoint);
+                                                //We reach the tag after one rebound
+                                                distanceToFinalObstacle = tagPose.Pos().Distance(collisionPoint);
 
                                                 if (currentFloorDistance>0 ){
                                                       //ROS_INFO("Rebound in GROUND %s - Distance: %f", obstacleName.c_str(), distanceToFinalObstacle);   
@@ -1017,7 +1017,7 @@ namespace gazebo
                                     }
                                     else
                                     {
-                                        //We can not reach the anchor, no ranging.
+                                        //We can not reach the tag, no ranging.
                                         losType = NLOS;
                                     }
                                 }
@@ -1081,67 +1081,64 @@ namespace gazebo
 
                             if (losType!=NLOS)
                             {
-                                gtec_msgs::msg::Ranging ranging_msg;
-                                ranging_msg.anchor_id = aid;
-                                ranging_msg.tag_id = this->tagId;
-                                ranging_msg.range = rangingValue;
-                                ranging_msg.seq = this->sequence;
-                                ranging_msg.rss = powerValue;
-                                ranging_msg.error_estimation = 0.00393973;
-                                ranging_list_msg.anchors.push_back(ranging_msg);
+                                //uwb_msgs::msg::Ranging ranging_msg;
+                                rangingMsg.anchor_id = this->anchorId;
+                                rangingMsg.tag_id = tag_id;
+                                rangingMsg.range = rangingValue;
+                                rangingMsg.seq = this->sequence;
+                                rangingMsg.rss = powerValue;
+                                rangingMsg.error_estimation = 0.00393973;
+                                //ranging_list_msg.anchors.push_back(ranging_msg);
                             }
                         }
 
                         // RCLCPP_INFO(node_->get_logger(), "Debug : losType : %d",losType);
 
-                        visualization_msgs::msg::Marker marker;
-                        marker.header.frame_id = "map";
-                        marker.header.stamp = node_->get_clock()->now();
-                        marker.id = aid;
-                        marker.type = visualization_msgs::msg::Marker::CYLINDER;
-                        marker.action = visualization_msgs::msg::Marker::ADD;
-                        marker.pose.position.x = anchorPose.Pos().X();
-                        marker.pose.position.y = anchorPose.Pos().Y();
-                        marker.pose.position.z = anchorPose.Pos().Z();
-                        marker.pose.orientation.x = anchorPose.Rot().X();
-                        marker.pose.orientation.y = anchorPose.Rot().Y();
-                        marker.pose.orientation.z = anchorPose.Rot().Z();
-                        marker.pose.orientation.w = anchorPose.Rot().W();
-                        marker.scale.x = 0.2;
-                        marker.scale.y = 0.2;
-                        marker.scale.z = 0.5;
-                        marker.color.a = 1.0;
+                        anchor_marker.header.frame_id = "map";
+                        anchor_marker.header.stamp = node_->get_clock()->now();
+                        anchor_marker.id = tag_id;
+                        anchor_marker.type = visualization_msgs::msg::Marker::CYLINDER;
+                        anchor_marker.action = visualization_msgs::msg::Marker::ADD;
+                        anchor_marker.pose.position.x = anchorPose.Pos().X();
+                        anchor_marker.pose.position.y = anchorPose.Pos().Y();
+                        anchor_marker.pose.position.z = anchorPose.Pos().Z();
+                        anchor_marker.pose.orientation.x = anchorPose.Rot().X();
+                        anchor_marker.pose.orientation.y = anchorPose.Rot().Y();
+                        anchor_marker.pose.orientation.z = anchorPose.Rot().Z();
+                        anchor_marker.pose.orientation.w = anchorPose.Rot().W();
+                        anchor_marker.scale.x = 0.2;
+                        anchor_marker.scale.y = 0.2;
+                        anchor_marker.scale.z = 0.5;
+                        anchor_marker.color.a = 1.0;
 
                         if (losType == LOS)         // GREEN
                         {
-                            marker.color.r = 0.0;
-                            marker.color.g = 1.0;
-                            marker.color.b = 0.0;
+                            anchor_marker.color.r = 0.0;
+                            anchor_marker.color.g = 1.0;
+                            anchor_marker.color.b = 0.0;
                         }
                         else if (losType == NLOS_S) // YELLO
                         {
-                            marker.color.r = 1.0;
-                            marker.color.g = 1.0;
-                            marker.color.b = 0.0;
+                            anchor_marker.color.r = 1.0;
+                            anchor_marker.color.g = 1.0;
+                            anchor_marker.color.b = 0.0;
                         }
                         else if (losType == NLOS_H) // BLUE
                         {
-                            marker.color.r = 0.0;
-                            marker.color.g = 0.0;
-                            marker.color.b = 1.0;
+                            anchor_marker.color.r = 0.0;
+                            anchor_marker.color.g = 0.0;
+                            anchor_marker.color.b = 1.0;
                         }
                         else if (losType == NLOS)   // RED
                         {
-                            marker.color.r = 1.0;
-                            marker.color.g = 0.0;
-                            marker.color.b = 0.0;
+                            anchor_marker.color.r = 1.0;
+                            anchor_marker.color.g = 0.0;
+                            anchor_marker.color.b = 0.0;
                         }
-
-                        markerArray.markers.push_back(marker);
                     }
                 }
-                this->gtecUwbPub->publish(ranging_list_msg);
-                this->gtecAnchors->publish(markerArray);
+                this->uwbRangingPub->publish(rangingMsg);
+                this->uwbAnchorMarkerPub->publish(anchor_marker);
                 this->sequence++;
             }
         }
@@ -1169,49 +1166,32 @@ namespace gazebo
     private:
         std::shared_ptr<gazebo_ros::Node> node_;
         visualization_msgs::msg::Marker marker;
-    private:
+
         physics::ModelPtr model;
-    private:
         physics::WorldPtr world;
-    private:
+        physics::LinkPtr anchorLink;
         physics::RayShapePtr firstRay;
-    private:
         physics::RayShapePtr secondRay;
-    private:
+
         event::ConnectionPtr updateConnection;
-    private:
+ 
         common::Time updatePeriod;
-    private:
         common::Time lastUpdateTime;
-    private:
-        double tagZOffset;
-    private:
-        std::string anchorPrefix;
-    private:
-        physics::LinkPtr tagLink;
-    private:
-        rclcpp::Publisher<gtec_msgs::msg::RangingList>::SharedPtr gtecUwbPub;
-    private:
-        gtec_msgs::msg::RangingList ranging_list_msg;
-    private:
-        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr gtecAnchors;
-    private:
-        rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr tag_realPos_pub;    
-    private:
+    
+        double anchorZOffset;
         unsigned char sequence;
-    private:
         double nlosSoftWallWidth;
-    private:
         double maxDBDistance;
-    private:
         double stepDBDistance;
-    private:
         bool allBeaconsAreLOS;
-    private:
-        int tagId;
-    private:
+        int anchorId;
         bool useParentAsReference;
+    
     private:
+        std::string tagPrefix;
+        rclcpp::Publisher<uwb_msgs::msg::Ranging>::SharedPtr uwbRangingPub;
+        rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr uwbAnchorMarkerPub;
+        //rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr tag_realPos_pub;    
         std::default_random_engine random_generator;
     };
 

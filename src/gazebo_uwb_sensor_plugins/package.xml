@@ -15,8 +15,8 @@
   <build_depend>rclcpp</build_depend>
   <exec_depend>rclcpp</exec_depend>
 
-  <build_depend>gtec_msgs</build_depend>
-  <exec_depend>gtec_msgs</exec_depend>
+  <build_depend>uwb_msgs</build_depend>
+  <exec_depend>uwb_msgs</exec_depend>
 
   <build_depend>geometry_msgs</build_depend>
   <exec_depend>geometry_msgs</exec_depend>

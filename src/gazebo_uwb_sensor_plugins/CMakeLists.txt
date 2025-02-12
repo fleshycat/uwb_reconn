@@ -12,7 +12,7 @@ find_package(ament_cmake REQUIRED)
 find_package(gazebo_ros REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(gtec_msgs REQUIRED)
+find_package(uwb_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
@@ -24,25 +24,25 @@ find_package(gazebo REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS system filesystem thread)
 
-add_library(gtec_uwb_plugin SHARED src/gazebo_uwb_plugin.cpp)
+add_library(uwb_plugin SHARED src/gazebo_uwb_plugin.cpp)
 
-ament_target_dependencies(gtec_uwb_plugin
+ament_target_dependencies(uwb_plugin
   "rclcpp"
   "gazebo_ros"
   "std_msgs"
-  "gtec_msgs"
+  "uwb_msgs"
   "geometry_msgs"
   "visualization_msgs"
   "tf2"
   "tf2_geometry_msgs"
 )
 
-target_include_directories(gtec_uwb_plugin PUBLIC
+target_include_directories(uwb_plugin PUBLIC
   ${Boost_INCLUDE_DIRS}
   ${GAZEBO_INCLUDE_DIRS}
 )
 
-target_link_libraries(gtec_uwb_plugin
+target_link_libraries(uwb_plugin
   ${GAZEBO_LIBRARIES}
   ${Boost_LIBRARIES}
 )
@@ -51,7 +51,7 @@ ament_export_dependencies(
   rclcpp
   gazebo_ros
   std_msgs
-  gtec_msgs
+  uwb_msgs
   geometry_msgs
   visualization_msgs
   tf2
@@ -59,10 +59,10 @@ ament_export_dependencies(
   gazebo_plugins
 )
 
-ament_export_libraries(gtec_uwb_plugin)
+ament_export_libraries(uwb_plugin)
 
 install(
-  TARGETS gtec_uwb_plugin
+  TARGETS uwb_plugin
   DESTINATION share/${PROJECT_NAME}
 )
 
