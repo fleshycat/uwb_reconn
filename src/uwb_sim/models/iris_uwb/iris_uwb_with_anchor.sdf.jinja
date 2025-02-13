@@ -441,9 +441,8 @@
       <motorSpeedPubTopic>/motor_speed/3</motorSpeedPubTopic>
       <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
     </plugin>
-
     <link name="anchor_link">
-      <pose>0 0 0.05 0 0 0</pose>
+      <pose>0 0 -0.055 0 0 0</pose>
       <inertial>
         <pose>0 0 0 0 0 0</pose>
         <mass>0.015</mass>
@@ -459,7 +458,7 @@
       <visual name="anchor_visual">
         <geometry>
           <box>
-            <size>0.01 0.01 0.05</size>
+            <size>0.01 0.01 0.03</size>
           </box>
         </geometry>
         <material>
@@ -470,9 +469,10 @@
     <joint name='anchor_joint' type='fixed'>
       <child>anchor_link</child>
       <parent>base_link</parent>
-    </joint>
+      <axis>0 0 1</axis>
+    </joint> 
 
-    <plugin name='uwb_anchor_plugin' filename='libuwb_plugin.so'>
+    <plugin name='uwb_anchor_plugin_{{ mavlink_id }}' filename='libuwb_plugin.so'>
       <update_rate>25</update_rate>
       <nlosSoftWallWidth>0.3</nlosSoftWallWidth>
       <anchor_z_offset>0</anchor_z_offset>
@@ -480,6 +480,9 @@
       <tag_prefix>uwb_tag</tag_prefix>
       <all_los>false</all_los>
       <anchor_id>{{ mavlink_id }} + 1</anchor_id>
+      <tag_collision_radius>0.1</tag_collision_radius>
+      <tag_link_name>link</tag_link_name>
+      <tag_collision_name>collision</tag_collision_name>
     </plugin>
 
     <include>
