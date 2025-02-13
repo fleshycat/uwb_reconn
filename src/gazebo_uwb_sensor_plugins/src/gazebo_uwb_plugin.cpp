@@ -670,6 +670,9 @@ namespace gazebo
             this->stepDBDistance = 0.1;
             this->allBeaconsAreLOS = false;
             this->useParentAsReference = false;
+            this->tagCollisionRadius=0.1;
+            this->tagLinkName = "link";
+            this->tagCollisionName = "collision";
 
 
             if (_sdf->HasElement("all_los"))
@@ -718,6 +721,19 @@ namespace gazebo
             {
                 this->tagPrefix = "uwb_tag";
             }
+            if (_sdf->HasElement("tag_collision_radius"))
+            {
+                this->tagCollisionRadius = _sdf->Get<float>("tag_collision_radius");
+            }
+            if (_sdf->HasElement("tag_link_name"))
+            {
+                this->tagLinkName = _sdf->Get<std::string>("tag_link_name");
+            }
+            if (_sdf->HasElement("tag_collision_name"))
+            {
+                this->tagCollisionName = _sdf->Get<std::string>("tag_collision_name");
+            }
+            
 
             RCLCPP_INFO(node_->get_logger(), "UWB Plugin is running. Tag %d", this->anchorId);
             RCLCPP_INFO(node_->get_logger(), "UWB Plugin All parameters loaded");
@@ -733,11 +749,14 @@ namespace gazebo
             stringStream.clear();
             stringStream << "/gtec/toa/anchors" << this->anchorId;*/
             std::string topicAnchor = topic_prefix_uwb + "/marker";
-            
-            //RCLCPP_INFO(node_->get_logger(), "UWB Plugin Anchors Position Publishing in %s", topicAnchors.c_str());
 
             this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::Ranging>(topicRanging, 10);
             this->uwbAnchorMarkerPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor, 10);
+
+            // visualize the uwb rays
+            this->firstRayPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor + "/firstRay", 10);
+            this->secondRayPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor + "/secondRay", 10);
+
             //this->tag_realPos_pub = node_->create_publisher<geometry_msgs::msg::Pose>("tag_real_pose", 10);
 
             this->firstRay = boost::dynamic_pointer_cast<physics::RayShape>(
@@ -827,10 +846,20 @@ namespace gazebo
                     anglesToTest[i] = angleToTest;
                 }
                 
+                // Create uwb_msg
                 uwb_msgs::msg::Ranging rangingMsg;
-                visualization_msgs::msg::Marker anchor_marker;
+                rangingMsg.anchor_id = this->anchorId;
+                rangingMsg.anchor_pose.position.x = anchorPose.Pos().X();
+                rangingMsg.anchor_pose.position.y = anchorPose.Pos().Y();
+                rangingMsg.anchor_pose.position.z = anchorPose.Pos().Z();
+                rangingMsg.anchor_pose.orientation.x = anchorPose.Rot().X();
+                rangingMsg.anchor_pose.orientation.y = anchorPose.Rot().Y();
+                rangingMsg.anchor_pose.orientation.z = anchorPose.Rot().Z();
+                rangingMsg.anchor_pose.orientation.w = anchorPose.Rot().W();
+                rangingMsg.los_type = rangingMsg.LOS_TYPE_NLOS;
 
-                // this->ranging_list_msg.anchors.clear();
+                // visualization marker for display anchor in Rviz
+                visualization_msgs::msg::Marker anchor_marker;
 
                 physics::Model_V models = this->world->Models();
                 
@@ -844,12 +873,10 @@ namespace gazebo
                         int tag_id = std::stoi(tag_idStr);
 
                         // RCLCPP_INFO(node_->get_logger(), "Debug : ##########anchor_id %d#######",tag_id);
-
                         ignition::math::Pose3d tagPose = tag->WorldPose();
                         // RCLCPP_INFO(node_->get_logger(), "Debug : anchorPose: Position(x: %f, y: %f, z: %f), Orientation(w: %f, x: %f, y: %f, z: %f)",
                         //             anchorPose.Pos().X(), anchorPose.Pos().Y(), anchorPose.Pos().Z(),
                         //             anchorPose.Rot().W(), anchorPose.Rot().X(), anchorPose.Rot().Y(), anchorPose.Rot().Z());
-                        
 
                         LOSType losType = LOS;
                         double distance = anchorPose.Pos().Distance(tagPose.Pos());
@@ -858,33 +885,61 @@ namespace gazebo
                         if (!allBeaconsAreLOS)
                         {
                             //We check if a ray can reach the tag:
-                            double distanceToObstacleFromTag;
+                            double distanceToObstacleFromAnchor;
                             std::string obstacleName;
 
                             ignition::math::Vector3d directionToAnchor = (anchorPose.Pos() - tagPose.Pos()).Normalize();
                             this->firstRay->Reset();
-                            this->firstRay->SetPoints(tagPose.Pos(), anchorPose.Pos());
-                            this->firstRay->GetIntersection(distanceToObstacleFromTag, obstacleName);
+                            this->firstRay->SetPoints(anchorPose.Pos(), tagPose.Pos());
+                            this->firstRay->GetIntersection(distanceToObstacleFromAnchor, obstacleName);
 
-                            if (obstacleName.compare("") == 0)
+                            std::string tagObstacleName = (*iter)->GetName() + "::" + tagLinkName + "::" + tagCollisionName;
+
+                            // RCLCPP_INFO(node_->get_logger(), "id: %d | obstacleName : %s", anchorId, obstacleName.c_str());
+                            // RCLCPP_INFO(node_->get_logger(), "id: %d | tagObstacleName : %s", anchorId, tagObstacleName.c_str());
+
+                            if (obstacleName.compare("") == 0 || obstacleName.compare(tagObstacleName) == 0)
                             {
                                 //There is no obstacle between tag and tag, we use the LOS model
                                 losType = LOS;
                                 distanceAfterRebounds = distance;
+
+                                this->visual_firstRay.header.frame_id = "map";  // RViz에서 사용될 좌표계
+                                this->visual_firstRay.header.stamp = node_->get_clock()->now();
+                                this->visual_firstRay.id = 10;
+                                this->visual_firstRay.type = visualization_msgs::msg::Marker::LINE_LIST;
+                                this->visual_firstRay.action = visualization_msgs::msg::Marker::ADD;
+                                this->visual_firstRay.scale.x = 0.02; // 선 두께
+                                this->visual_firstRay.color.a = 1.0;
+                                this->visual_firstRay.color.r = 1.0;
+                                this->visual_firstRay.color.g = 0.0;
+                                this->visual_firstRay.color.b = 0.0;
+
+                                geometry_msgs::msg::Point p1, p2;
+                                p1.x = anchorPose.X();
+                                p1.y = anchorPose.Y();
+                                p1.z = anchorPose.Z();
+                                p2.x = tagPose.X();
+                                p2.y = tagPose.Y();
+                                p2.z = tagPose.Z();
+
+                                visual_firstRay.points.push_back(p1);
+                                visual_firstRay.points.push_back(p2);
+
+                                this->firstRayPub->publish(visual_firstRay);
                             }
                             else
                             {
-
                                 //We use a second ray to measure the distance from tag to tag, so we can
                                 //know what is the width of the walls
-                                double distanceToObstacleFromAnchor;
+                                double distanceToObstacleFromTag;
                                 std::string otherObstacleName;
 
                                 this->secondRay->Reset();
-                                this->secondRay->SetPoints(anchorPose.Pos(), tagPose.Pos());
-                                this->secondRay->GetIntersection(distanceToObstacleFromAnchor, otherObstacleName);
+                                this->secondRay->SetPoints(tagPose.Pos(), anchorPose.Pos());
+                                this->secondRay->GetIntersection(distanceToObstacleFromTag, otherObstacleName);
 
-                                double wallWidth = distance - distanceToObstacleFromTag - distanceToObstacleFromAnchor;
+                                double wallWidth = distance - distanceToObstacleFromTag - distanceToObstacleFromTag;
                                 //RCLCPP_INFO(node_->get_logger(), "distanceToObstacleFromTag= %f | distanceToObstacleFromAnchor= %f | ",distanceToObstacleFromTag, distanceToObstacleFromAnchor);
                                 //RCLCPP_INFO(node_->get_logger(), "wallWidth= %f", wallWidth);
                                 if (wallWidth <= this->nlosSoftWallWidth && obstacleName.compare(otherObstacleName) == 0)
@@ -940,7 +995,9 @@ namespace gazebo
                                         this->firstRay->SetPoints(currentanchorPose, rayPoint);
                                         this->firstRay->GetIntersection(distanceToRebound, obstacleName);
 
-                                        if (obstacleName.compare("") != 0)
+                                        //RCLCPP_INFO(node_->get_logger(), "second obstacleName : %s", obstacleName.c_str());
+
+                                        if (obstacleName.compare("") != 0 && obstacleName.compare(tagObstacleName) != 0)
                                         {
                                             //RCLCPP_INFO(node_->get_logger(), "Debug : obstacleName %s", obstacleName.c_str());
                                             ignition::math::Vector3d collisionPoint(currentanchorPose.X() + distanceToRebound * cos(currentAngle), currentanchorPose.Y() + distanceToRebound * sin(currentAngle), currentanchorPose.Z());
@@ -959,7 +1016,9 @@ namespace gazebo
                                             this->secondRay->SetPoints(collisionPoint, tagPose.Pos());
                                             this->secondRay->GetIntersection(distanceToFinalObstacle, finalObstacleName);
 
-                                            if (finalObstacleName.compare("") == 0)
+                                            //RCLCPP_INFO(node_->get_logger(), "second finalObstacleName : %s", finalObstacleName.c_str());
+
+                                            if (finalObstacleName.compare("") == 0 || finalObstacleName.compare(tagObstacleName) == 0)
                                             {
                                                 //RCLCPP_INFO(node_->get_logger(), "Debug : finalObstacleName %s", finalObstacleName.c_str());
                                                 //We reach the tag after one rebound
@@ -985,10 +1044,35 @@ namespace gazebo
                                                     {
                                                         distanceNlosHard = distanceToRebound + distanceToFinalObstacle;
                                                     }
-                                                    //RCLCPP_INFO(node_->get_logger(), "Debug : --------------------");
-                                                    //RCLCPP_INFO(node_->get_logger(), "Debug : foundNlosH : %d",foundNlosH);
-                                                    //RCLCPP_INFO(node_->get_logger(), "Debug : distanceNlosHard : %f",distanceNlosHard);
+                                                    // RCLCPP_INFO(node_->get_logger(), "Debug : --------------------");
+                                                    // RCLCPP_INFO(node_->get_logger(), "Debug : foundNlosH : %d",foundNlosH);
+                                                    // RCLCPP_INFO(node_->get_logger(), "Debug : distanceNlosHard : %f",distanceNlosHard);
+                                                    // RCLCPP_INFO(node_->get_logger(), "Debug : distanceNlosHard : %f",distanceNlosHard);
                                                 }
+                                                
+                                                this->visual_secondRay.header.frame_id = "map";  // RViz에서 사용될 좌표계
+                                                this->visual_secondRay.header.stamp = node_->get_clock()->now();
+                                                this->visual_secondRay.id = 11;
+                                                this->visual_secondRay.type = visualization_msgs::msg::Marker::LINE_LIST;
+                                                this->visual_secondRay.action = visualization_msgs::msg::Marker::ADD;
+                                                this->visual_secondRay.scale.x = 0.02; // 선 두께
+                                                this->visual_secondRay.color.a = 1.0;
+                                                this->visual_secondRay.color.r = 0.0;
+                                                this->visual_secondRay.color.g = 1.0;
+                                                this->visual_secondRay.color.b = 0.0;
+
+                                                geometry_msgs::msg::Point p1, p2;
+                                                p1.x = collisionPoint.X();
+                                                p1.y = collisionPoint.Y();
+                                                p1.z = collisionPoint.Z();
+                                                p2.x = tagPose.X();
+                                                p2.y = tagPose.Y();
+                                                p2.z = tagPose.Z();
+
+                                                visual_secondRay.points.push_back(p1);
+                                                visual_secondRay.points.push_back(p2);
+
+                                                this->secondRayPub->publish(visual_secondRay);
                                             }
                                         }
 
@@ -1079,20 +1163,9 @@ namespace gazebo
                                 losType = NLOS;
                             }
 
-                            if (losType!=NLOS)
-                            {
-                                //uwb_msgs::msg::Ranging ranging_msg;
-                                rangingMsg.anchor_id = this->anchorId;
-                                rangingMsg.tag_id = tag_id;
-                                rangingMsg.range = rangingValue;
-                                rangingMsg.seq = this->sequence;
-                                rangingMsg.rss = powerValue;
-                                rangingMsg.error_estimation = 0.00393973;
-                                //ranging_list_msg.anchors.push_back(ranging_msg);
-                            }
+                            rangingMsg.range = rangingValue;
+                            rangingMsg.rss = powerValue;
                         }
-
-                        // RCLCPP_INFO(node_->get_logger(), "Debug : losType : %d",losType);
 
                         anchor_marker.header.frame_id = "map";
                         anchor_marker.header.stamp = node_->get_clock()->now();
@@ -1135,6 +1208,11 @@ namespace gazebo
                             anchor_marker.color.g = 0.0;
                             anchor_marker.color.b = 0.0;
                         }
+
+                        rangingMsg.tag_id = tag_id;
+                        rangingMsg.seq = this->sequence;
+                        rangingMsg.error_estimation = 0.00393973;
+                        rangingMsg.los_type = losType;
                     }
                 }
                 this->uwbRangingPub->publish(rangingMsg);
@@ -1186,11 +1264,19 @@ namespace gazebo
         bool allBeaconsAreLOS;
         int anchorId;
         bool useParentAsReference;
+        float tagCollisionRadius;
+
+        visualization_msgs::msg::Marker visual_firstRay;
+        visualization_msgs::msg::Marker visual_secondRay;
     
     private:
         std::string tagPrefix;
+        std::string tagLinkName;
+        std::string tagCollisionName;
         rclcpp::Publisher<uwb_msgs::msg::Ranging>::SharedPtr uwbRangingPub;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr uwbAnchorMarkerPub;
+        rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr firstRayPub;
+        rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr secondRayPub;
         //rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr tag_realPos_pub;    
         std::default_random_engine random_generator;
     };
