@@ -108,14 +108,21 @@
         </inertia>
       </inertial>
       <gravity>1</gravity>
-      <static>1</static>
+      <static>0</static>
       <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.1</radius>
+            </sphere>
+          </geometry>
+        </collision>
         <visual name="tag_visual">
-            <geometry>
-              <box>
-                <size>0.1 0.1 0.5</size>
-              </box>
-            </geometry>
+          <geometry>
+            <sphere>
+              <radius>0.1</radius>
+            </sphere>
+          </geometry>
           </visual>
       </link>
   </model>
