@@ -43,9 +43,6 @@ class StartMission(Node):
         self.declare_parameter('system_id', 1)
         self.system_id_ = self.get_parameter('system_id').get_parameter_value().integer_value
         
-        self.declare_parameter('robot_type', 'iris')
-        self.robot_type_ = self.get_parameter('robot_type').get_parameter_value().string_value
-        
         self.get_logger().info(f"Configure DroneManager {self.system_id_}")
         
         self.topic_prefix_fmu_ = f"drone{self.system_id_}/fmu/"
@@ -112,21 +109,15 @@ class StartMission(Node):
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-            if self.robot_type_ == "rover":
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+            setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
+            success, distance = self.isOnSetpoint(setpoint)
+            if not success:
+                self.setpoint(setpoint)
             else:
-                setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
-                success, distance = self.isOnSetpoint(setpoint)
-                if not success:
-                    self.setpoint(setpoint)
-                else:
-                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.MISSION1:
-            if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
-            elif self.robot_type_ == "rover":
-                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
+            setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
@@ -136,10 +127,8 @@ class StartMission(Node):
                 self.disarmPos=[self.POSX(), self.POSY()]
                 
         if self.currentProgressStatus == ProgressStatus.MISSION2:
-            if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0] , self.disarmPos[1] + 10, -1.5]
-            elif self.robot_type_ == "rover":
-                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
+            setpoint=[self.disarmPos[0] , self.disarmPos[1] + 10, -1.5]
+
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
@@ -149,10 +138,7 @@ class StartMission(Node):
                 self.disarmPos=[self.POSX(), self.POSY()]
                 
         if self.currentProgressStatus == ProgressStatus.MISSION3:
-            if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0] - 15, self.disarmPos[1], -1.5]
-            elif self.robot_type_ == "rover":
-                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
+            setpoint=[self.disarmPos[0] - 15, self.disarmPos[1], -1.5]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
@@ -162,10 +148,7 @@ class StartMission(Node):
                 self.disarmPos=[self.POSX(), self.POSY()]
                 
         if self.currentProgressStatus == ProgressStatus.MISSION4:
-            if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0], self.disarmPos[1] + 10, -1.5]
-            elif self.robot_type_ == "rover":
-                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
+            setpoint=[self.disarmPos[0], self.disarmPos[1] + 10, -1.5]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
@@ -175,10 +158,7 @@ class StartMission(Node):
                 self.disarmPos=[self.POSX(), self.POSY()]
         
         if self.currentProgressStatus == ProgressStatus.MISSION5:
-            if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
-            elif self.robot_type_ == "rover":
-                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
+            setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)

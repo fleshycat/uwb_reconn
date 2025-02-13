@@ -5,8 +5,8 @@
 ## How to Install
 
 ```
-$ git clone https://github.com/SUV-Lab/uwb_simulation.git
-$ cd uwb_simulation
+$ git clone https://github.com/fleshycat/uwb_reconn.git
+$ cd uwb_reconn
 $ colcon build
 ```
 
@@ -14,7 +14,7 @@ $ colcon build
 
 ```
 # Running a Gazebo World with Anchors and Tags
-$ ros2 launch uwb_sim  robot_in_gazebo_world_run.launch.py
+$ ros2 launch uwb_sim robot_in_gazebo_world_run.launch.py
 ```
 
 ```

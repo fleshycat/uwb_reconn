@@ -68,7 +68,7 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    forest_world = jinja_world.render(tag_id = 1, tag_pose = [0.0, 1.0, 2.0])
+    forest_world = jinja_world.render(tag_id = 1, tag_pose = [0.0, 0.0, 2.0])
     world_file_path = os.path.join('/tmp', 'output.world')
     with open(world_file_path, 'w') as f:
         f.write(forest_world)
@@ -106,7 +106,7 @@ def launch_setup(context, *args, **kwargs):
 
         jinja_cmd = [
             f'{gazebo_classic_path}/scripts/jinja_gen.py',
-            f'{current_package_path}/models/iris_anchor/iris_uwb_with_anchor.sdf.jinja',
+            f'{current_package_path}/models/iris_uwb/iris_uwb_with_anchor.sdf.jinja',
             f'{current_package_path}',
             '--mavlink_tcp_port', f'{4560+i}',
             '--mavlink_udp_port', f'{14560+i}',
@@ -126,10 +126,10 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{0}', '-y', f'{0}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{3 * (-1)**i }', '-y', f'{3 * (-1 if i%3 == 0 else 1)}' ],
             output='screen')
         drone_process_list.append(spawn_entity_node)
-        
+                
         # PX4
         # build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
         cmd = [
@@ -151,7 +151,7 @@ def launch_setup(context, *args, **kwargs):
         
         start_mission_node = Node(
             package='mission',
-            executable='start_mission',
+            executable='start_mission_hover',
             name='start_mission',
             parameters=[{'system_id': i + 1}],
             output='screen'
@@ -181,7 +181,7 @@ def launch_setup(context, *args, **kwargs):
         xrce_agent_process,
         gazebo_node,
         *drone_process_list,
-        #*start_mission_nodes,    
+        *start_mission_nodes,    
         #tag_pos_node,
         #tag_kalman_pos_node,
         #rviz_node,
