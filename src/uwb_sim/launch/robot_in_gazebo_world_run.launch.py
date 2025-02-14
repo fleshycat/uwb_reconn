@@ -84,7 +84,7 @@ def launch_setup(context, *args, **kwargs):
         executable='sqrrange_leastsqr_localization',
         name='tag_pos',
         output='screen',
-        parameters=[{'use_sim_time': True}],
+        parameters=[{'system_id_list': [1, 2, 3, 4]}],
     )
     
     start_mission_nodes=[]
@@ -182,7 +182,7 @@ def launch_setup(context, *args, **kwargs):
         gazebo_node,
         *drone_process_list,
         *start_mission_nodes,    
-        #tag_pos_node,
+        tag_pos_node,
         #tag_kalman_pos_node,
         #rviz_node,
     ]

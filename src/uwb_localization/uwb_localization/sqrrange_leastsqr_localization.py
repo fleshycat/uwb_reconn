@@ -9,7 +9,7 @@ __email__ = "bekirbostanci@gmail.com"
 
 import rclpy
 from rclpy.node import Node
-from gtec_msgs.msg import Ranging, RangingList
+from uwb_msgs.msg import Ranging, RangingList
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
@@ -20,69 +20,38 @@ from tf2_ros import TransformBroadcaster
 import numpy as np
 from scipy.linalg import eigvals
 
-all_distance = []
-pose_x = 0
-pose_y = 0
-
 class LocalizationNode(Node):
     def __init__(self):
         super().__init__('localization_data_node')
         self.pub = self.create_publisher(PoseStamped, 'tag', 10)
-        self.uwb_data_sub = self.create_subscription(
-            RangingList,
-            '/gtec/toa/id_1/ranging',
-            self.uwd_data_callback,
-            10
-        )
-        self.anchor_pos_sub = self.create_subscription(
-            MarkerArray,
-            '/gtec/toa/id_1/anchors',
-            self.anchor_pos_callback,
-            10
-        )
-        self.uwb_data_list = RangingList()
-        self.placed_anchor_list = []
         
+        self.declare_parameter('system_id_list', [0])
+        self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
+        
+        self.topic_anchor_prefix = "/uwb/anchor_"
+        self.topic_imu_prefix = "/iris/id_"
+        
+        self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
+        self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
+        
+        for sys_id in self.system_id_list:
+            globals()["self.anchor_{}_subscriber".format(sys_id)] = self.create_subscription(Ranging, f'{self.topic_anchor_prefix}{sys_id}/ranging', self.uwd_data_callback, 10)
+
         # Initialize the transform broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
 
     def uwd_data_callback(self, msg):
-        all_distance=[]
-        ditected_anchor_pos_list=[]
-        for anchor in msg.anchors:
-            all_distance.append(anchor.range/1000)
-            for placed_anchor in self.placed_anchor_list:
-                if placed_anchor.anchor_id == anchor.anchor_id:
-                    ditected_anchor_pos_list.append([placed_anchor.x, placed_anchor.y, placed_anchor.z])
-                    break
-        ditected_anchor_pos_list=np.array(ditected_anchor_pos_list) #Transport list to np.array
-        all_distance=np.array(all_distance)
+        anchorID = msg.anchor_id
+        anchor_pose = np.array([msg.anchor_pose.position.x, msg.anchor_pose.position.y, msg.anchor_pose.position.z])
+        self.dictected_anchor_pos[anchorID - 1] = anchor_pose
+        self.dictedted_anchor_ranging[anchorID - 1] = msg.range / 1000
         
         robot_pos=[]
-        if len(ditected_anchor_pos_list)!=0:
-            #robot_pos = self.trilateration(ditected_anchor_pos_list, all_distance)
-            robot_pos = self.position_calculation(ditected_anchor_pos_list, all_distance)
+        if len(self.dictected_anchor_pos)!=0:
+            robot_pos = self.position_calculation(self.dictected_anchor_pos, self.dictedted_anchor_ranging)
         
         if robot_pos is not None and len(robot_pos) > 0:
             self.publish_data(robot_pos[0], robot_pos[1],robot_pos[2])
-
-    def publish_data(self, pose_x, pose_y, pose_z):
-        robot_pos = PoseStamped()
-        
-        robot_pos.header.stamp = self.get_clock().now().to_msg()
-        robot_pos.header.frame_id = 'map'
-        
-        robot_pos.pose.position.x = float(pose_x)
-        robot_pos.pose.position.y = float(pose_y)
-        robot_pos.pose.position.z = float(pose_z)
-
-        robot_pos.pose.orientation.x = 0.0
-        robot_pos.pose.orientation.y = 0.0
-        robot_pos.pose.orientation.z = 0.0
-        robot_pos.pose.orientation.w = 1.0
-
-        # self.get_logger().info(f"Publishing: {robot_pos.pose.position.x, robot_pos.pose.position.y, robot_pos.pose.position.z}")
-        self.pub.publish(robot_pos)
 
     def position_calculation(self, anchor_pos, dist):
         if len(anchor_pos) == 0:
@@ -128,41 +97,23 @@ class LocalizationNode(Node):
                 x=-x
             return x 
         
-    def anchor_pos_callback(self, msg):
-        self.placed_anchor_list=[]
-        for data in msg.markers:
-            anchor_data = Anchor(data.pose.position.x, data.pose.position.y, data.pose.position.z, data.id)
-            self.placed_anchor_list.append(anchor_data)
-        if len(self.placed_anchor_list) == 0:
-            self.get_logger().warn("No anchors found. Retrying...")
-            return self.anchor_pos_callback()
+    def publish_data(self, pose_x, pose_y, pose_z):
+        robot_pos = PoseStamped()
+        
+        robot_pos.header.stamp = self.get_clock().now().to_msg()
+        robot_pos.header.frame_id = 'map'
+        
+        robot_pos.pose.position.x = float(pose_x)
+        robot_pos.pose.position.y = float(pose_y)
+        robot_pos.pose.position.z = float(pose_z)
 
-class Anchor():
-    def __init__(self, x, y, z, anchor_id):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.anchor_id = anchor_id
-    
-    # Getter
-    def x(self):
-        return self.x
-    def y(self):
-        return self.y
-    def z(self):
-        return self.z
-    def anchor_id(self):
-        return self.anchor_id
-    
-    #Setter
-    def x(self, x):
-        self.x = x
-    def y(self, y):
-        self.y = y
-    def z(self, z):
-        self.z = z
-    def anchor_id(self, anchor_id):
-        self.achor_id = anchor_id
+        robot_pos.pose.orientation.x = 0.0
+        robot_pos.pose.orientation.y = 0.0
+        robot_pos.pose.orientation.z = 0.0
+        robot_pos.pose.orientation.w = 1.0
+
+        # self.get_logger().info(f"Publishing: {robot_pos.pose.position.x, robot_pos.pose.position.y, robot_pos.pose.position.z}")
+        self.pub.publish(robot_pos)
         
 def main(args=None):
     rclpy.init(args=args)
