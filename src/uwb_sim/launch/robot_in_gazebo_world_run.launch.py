@@ -6,7 +6,7 @@ from ament_index_python import get_package_prefix
 from ament_index_python.packages import get_package_share_directory
 from decimal import Decimal
 import xml.etree.ElementTree as ET
-import subprocess
+import numpy as np
 from jinja2 import Template
 import launch
 from launch import LaunchDescription
@@ -50,6 +50,8 @@ def launch_setup(context, *args, **kwargs):
     gazebo_classic_path = f'{px4_src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic'
     world_type = LaunchConfiguration('world_type').perform(context)
     px4_sim_env = SetEnvironmentVariable('PX4_SIM_MODEL', f'gazebo-classic_iris')
+    px4_lat = SetEnvironmentVariable('PX4_HOME_LAT', f'36.6299')
+    px4_lon = SetEnvironmentVariable('PX4_HOME_LON', f'127.4588')
     num_drone = int(LaunchConfiguration('num_drone').perform(context))
 
     # Environments
@@ -68,17 +70,20 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    forest_world = jinja_world.render(tag_id = 1, tag_pose = [0.0, 0.0, 2.0])
+    tag_position = np.random.uniform(-10, 10, 2)
+    tag_position = np.append(tag_position, 2)# Random tag position
+    simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0,0,2]) 
     world_file_path = os.path.join('/tmp', 'output.world')
     with open(world_file_path, 'w') as f:
-        f.write(forest_world)
+        f.write(simulation_world)
 
     gazebo_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('gazebo_ros'), 'launch'), '/gazebo.launch.py']),
-        launch_arguments={'world': world_file_path, 'verbose':'true', 'gui':'true' }.items()
+        launch_arguments={'world': world_file_path, 'verbose':'false', 'gui':'true' }.items()
     )
 
+    # Run trilateration Node
     tag_pos_node = Node(
         package='uwb_localization',
         executable='sqrrange_leastsqr_localization',
@@ -126,8 +131,10 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{3 * (-1)**i }', '-y', f'{3 * (-1 if i%3 == 0 else 1)}' ],
-            output='screen')
+            #arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
+            output='log',
+            )
         drone_process_list.append(spawn_entity_node)
                 
         # PX4
@@ -151,8 +158,8 @@ def launch_setup(context, *args, **kwargs):
         
         start_mission_node = Node(
             package='mission',
-            executable='start_mission_hover',
-            name='start_mission',
+            executable='start_mission_circle',
+            name='mission',
             parameters=[{'system_id': i + 1}],
             output='screen'
         )
@@ -174,6 +181,8 @@ def launch_setup(context, *args, **kwargs):
     )
     
     nodes_to_start = [
+        px4_lat,
+        px4_lon,
         resource_path_env,
         px4_sim_env,
         model_path_env,
