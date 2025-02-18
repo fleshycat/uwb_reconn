@@ -123,7 +123,7 @@ class StartMission(Node):
                     print("distance", distance)
                     print(f"{self.robot_type_} : {setpoint}")
                 else:
-                    if self.mission_time_count < 30:
+                    if self.mission_time_count < 60:
                         self.mission_time_count += 1
                     else:
                         self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 6)

@@ -125,7 +125,7 @@ class StartMission(Node):
         
         if self.currentProgressStatus == ProgressStatus.MISSION1:
             if self.robot_type_=="iris":
-                setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
+                setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] , -1.5]
             elif self.robot_type_ == "rover":
                 setpoint=[self.disarmPos[0] + 20, self.disarmPos[1] + 20, 0]
             success, distance = self.isOnSetpoint(setpoint)

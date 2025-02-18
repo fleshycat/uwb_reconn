@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-
+import numpy as np
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
@@ -11,7 +11,6 @@ from std_msgs.msg import Empty, UInt8
 
 from enum import Enum
 import math
-import numpy as np
 
 class MonitoringFlagType(Enum):
     SAFETY_LOCK_STATUS = 0
@@ -43,6 +42,9 @@ class StartMission(Node):
         self.declare_parameter('system_id', 1)
         self.system_id_ = self.get_parameter('system_id').get_parameter_value().integer_value
         
+        self.declare_parameter('robot_type', 'iris')
+        self.robot_type_ = self.get_parameter('robot_type').get_parameter_value().string_value
+        
         self.get_logger().info(f"Configure DroneManager {self.system_id_}")
         
         self.topic_prefix_fmu_ = f"drone{self.system_id_}/fmu/"
@@ -59,7 +61,11 @@ class StartMission(Node):
         timer_period_ocm = 0.1
         self.timer_ocm_ = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         
+        self.circle_trajectory = self.generate_circular_trajectory(radius=2, frequency=10, total_time=5)
+        
         self.currentProgressStatus=ProgressStatus.DISARM
+        
+        self.circleProgressCount = 0
         
         self.ocm_publisher_ = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu_}in/offboard_control_mode', qos_profile_sensor_data)
         self.ocm_msg_ = OffboardControlMode()
@@ -78,7 +84,7 @@ class StartMission(Node):
     def in_progress_callback(self):
         if not self.monitoring_msg_._pos_x:
             return
-        self.get_logger().info(f"Current Progress : {self.currentProgressStatus}")
+        print("Current Progress :", self.currentProgressStatus)
         if self.currentProgressStatus == ProgressStatus.DISARM:
             self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             self.disarmPos[0]=self.POSX()
@@ -102,76 +108,56 @@ class StartMission(Node):
                 msg.target_system = self.system_id_
                 msg.command = VehicleCommandMsg.VEHICLE_CMD_DO_SET_MODE
                 msg.param1 = 1.0
-                msg.param2 = 6.0 # PX4_CUSTOM_MAIN_MODE_OFFBOARD=6,
+                msg.param2 = 6.0 # PX4_CUSTOM_MAIN_MODE_OFFBOARD = 6,
                 msg.from_external = True      
                 self.vehicle_command_publisher_.publish(msg)
             else:
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-            setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                self.setpoint(setpoint)
-            else:
+            if self.robot_type_ == "rover":
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+            else:
+                setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
+                success, distance = self.isOnSetpoint(setpoint)
+                if not success:
+                    self.setpoint(setpoint)
+                    print("distance", distance)
+                    print(f"{self.robot_type_} : {setpoint}")
+                else:
+                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+                    self.circle_trajectory = [[setpoint[0] + self.POSX(), setpoint[1] + self.POSY()] for setpoint in self.circle_trajectory]
         
         if self.currentProgressStatus == ProgressStatus.MISSION1:
-            setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
-                self.setpoint(setpoint, yaw=yaw)
-            else:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos=[self.POSX(), self.POSY()]
-                
-        if self.currentProgressStatus == ProgressStatus.MISSION2:
-            setpoint=[self.disarmPos[0] , self.disarmPos[1] + 10, -1.5]
-
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
-                self.setpoint(setpoint, yaw=yaw) 
-            else:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos=[self.POSX(), self.POSY()]
-                
-        if self.currentProgressStatus == ProgressStatus.MISSION3:
-            setpoint=[self.disarmPos[0] - 15, self.disarmPos[1], -1.5]
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
-                self.setpoint(setpoint, yaw=yaw)  
-            else:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos=[self.POSX(), self.POSY()]
-                
-        if self.currentProgressStatus == ProgressStatus.MISSION4:
-            setpoint=[self.disarmPos[0], self.disarmPos[1] + 10, -1.5]
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
-                self.setpoint(setpoint, yaw=yaw)  
-            else:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos=[self.POSX(), self.POSY()]
-        
-        if self.currentProgressStatus == ProgressStatus.MISSION5:
-            setpoint=[self.disarmPos[0] + 15, self.disarmPos[1], -1.5]
-            success, distance = self.isOnSetpoint(setpoint)
-            if not success:
-                yaw = np.arctan2(setpoint[1] - self.monitoring_msg_._pos_y, setpoint[0] - self.monitoring_msg_._pos_x)
-                self.setpoint(setpoint, yaw=yaw)    
-            else:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos=[self.POSX(), self.POSY()]
-        
+            self.circleProgressCount += 1
+            
+            setpoint=[self.circle_trajectory[self.circleProgressCount % 50][0], self.circle_trajectory[self.circleProgressCount % 50][1] , -1.5]
+            self.setpoint(setpoint)
+            # if not success:
+            #     self.setpoint(setpoint)
+            #     print("distance", distance)
+            #     print(f"{self.robot_type_} : {setpoint}")
+            # else:
+            #     self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 5)
+            #     self.disarmPos=[self.POSX(), self.POSY()]
+         
         if self.currentProgressStatus == ProgressStatus.Done:
             print("Current Progress :", self.currentProgressStatus)
             self.destroy_node()
             rclpy.shutdown()
-              
+
+    def generate_circular_trajectory(self, radius=5, frequency=10, total_time=10):
+        num_points = int(total_time * frequency)  # 총 샘플 수
+        trajectory = []
+
+        for i in range(num_points):
+            theta = 2 * np.pi * (i / num_points)  # 각도 (라디안)
+            x = radius * np.cos(theta)  # X 좌표
+            y = radius * np.sin(theta)  # Y 좌표
+            trajectory.append((x, y))
+        
+        return trajectory
+
     def monitoring_callback(self, msg):
         self.monitoring_msg_ = msg
         self.monitoring_flag = True
