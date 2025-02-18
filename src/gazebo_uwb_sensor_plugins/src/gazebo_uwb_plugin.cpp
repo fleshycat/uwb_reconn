@@ -848,6 +848,8 @@ namespace gazebo
                 
                 // Create uwb_msg
                 uwb_msgs::msg::Ranging rangingMsg;
+                rangingMsg.header.frame_id = "map";
+                rangingMsg.header.stamp = node_->get_clock()->now();
                 rangingMsg.anchor_id = this->anchorId;
                 rangingMsg.anchor_pose.position.x = anchorPose.Pos().X();
                 rangingMsg.anchor_pose.position.y = anchorPose.Pos().Y();
