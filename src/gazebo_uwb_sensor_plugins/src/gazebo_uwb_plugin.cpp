@@ -651,7 +651,6 @@ namespace gazebo
                 RCLCPP_FATAL(rclcpp::get_logger("UwbPlugin"),
                             "A ROS node for Gazebo has not been initialized, unable to load plugin. "
                             "Load the Gazebo system plugin 'libgazebo_ros_api_plugin.so' in the gazebo_ros package");
-
                 return;
             }
 
@@ -767,6 +766,8 @@ namespace gazebo
 
             this->updateConnection =
                 event::Events::ConnectWorldUpdateBegin(std::bind(&UwbPlugin::OnUpdate, this, std::placeholders::_1));
+
+            this->REF_flag = false;
         }
 
     public:
@@ -792,6 +793,13 @@ namespace gazebo
                 ignition::math::Vector3d posCorrectedZ(anchorPose.Pos().X(), anchorPose.Pos().Y(), anchorPose.Pos().Z() + this->anchorZOffset);
                 anchorPose.Set(posCorrectedZ, anchorPose.Rot());
                 ignition::math::Vector3d currentanchorPose(anchorPose.Pos());
+                
+                // Record Drone spawn position
+                if (!this->REF_flag){
+                    this->REF_NED_N = anchorPose.Pos().X();
+                    this->REF_NED_E = anchorPose.Pos().Y();
+                    this->REF_flag = true;
+                }
 
                 //publish real tag pos
                 // geometry_msgs::msg::Pose tag_realPOS;
@@ -854,8 +862,8 @@ namespace gazebo
                 rangingMsg.anchor_pose.position.x = anchorPose.Pos().X();
                 rangingMsg.anchor_pose.position.y = anchorPose.Pos().Y();
                 rangingMsg.anchor_pose.position.z = anchorPose.Pos().Z();
-                rangingMsg.anchor_pose.orientation.x = anchorPose.Rot().X();
-                rangingMsg.anchor_pose.orientation.y = anchorPose.Rot().Y();
+                rangingMsg.anchor_pose.orientation.x = this->REF_NED_N; //TODO -> anchorPose.Rot().X();
+                rangingMsg.anchor_pose.orientation.y = this->REF_NED_E; //TODO -> anchorPose.Rot().Y();
                 rangingMsg.anchor_pose.orientation.z = anchorPose.Rot().Z();
                 rangingMsg.anchor_pose.orientation.w = anchorPose.Rot().W();
                 rangingMsg.los_type = rangingMsg.LOS_TYPE_NLOS;
@@ -1267,6 +1275,9 @@ namespace gazebo
         int anchorId;
         bool useParentAsReference;
         float tagCollisionRadius;
+        double REF_NED_N;
+        double REF_NED_E;
+        bool REF_flag;
 
         visualization_msgs::msg::Marker visual_firstRay;
         visualization_msgs::msg::Marker visual_secondRay;
