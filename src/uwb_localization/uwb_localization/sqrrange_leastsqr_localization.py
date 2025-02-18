@@ -11,11 +11,12 @@ import rclpy
 from rclpy.node import Node
 from uwb_msgs.msg import Ranging, RangingList
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import Pose2D, PoseStamped, TransformStamped
 from scipy.optimize import minimize
 from tf2_ros import TransformBroadcaster
+from message_filters import Subscriber, ApproximateTimeSynchronizer
+from px4_msgs.msg import Monitoring
+from rclpy.qos import qos_profile_sensor_data
 
 import numpy as np
 from scipy.linalg import eigvals
@@ -23,8 +24,6 @@ from scipy.linalg import eigvals
 class LocalizationNode(Node):
     def __init__(self):
         super().__init__('localization_data_node')
-        self.pub = self.create_publisher(PoseStamped, 'tag', 10)
-        
         self.declare_parameter('system_id_list', [0])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         
@@ -34,17 +33,40 @@ class LocalizationNode(Node):
         self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
         self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
         
-        for sys_id in self.system_id_list:
-            globals()["self.anchor_{}_subscriber".format(sys_id)] = self.create_subscription(Ranging, f'{self.topic_anchor_prefix}{sys_id}/ranging', self.uwd_data_callback, 10)
+        self.TagPose_pub = self.create_publisher(PoseStamped, 'tag', 10)
+        self.TagPoseLLH_pub = self.create_publisher(Pose2D, 'tagLLH', 10)
+        
+        self.uwb_topic_subscribers = [
+            Subscriber(self, Ranging, f'{self.topic_anchor_prefix}{sys_id}/ranging') for sys_id in self.system_id_list
+            ]
 
+        self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
+        self.REF_drone_monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
+        self.monitoring_msg = Monitoring()
+        
+        self.REF_position = []
+        self.REF_position_flag = False
+        
+        self.ats = ApproximateTimeSynchronizer(
+            self.uwb_topic_subscribers,
+            queue_size=10,
+            slop=0.1,
+            )
+        
+        self.ats.registerCallback(self.uwb_data_callback)
+            
         # Initialize the transform broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
 
-    def uwd_data_callback(self, msg):
-        anchorID = msg.anchor_id
-        anchor_pose = np.array([msg.anchor_pose.position.x, msg.anchor_pose.position.y, msg.anchor_pose.position.z])
-        self.dictected_anchor_pos[anchorID - 1] = anchor_pose
-        self.dictedted_anchor_ranging[anchorID - 1] = msg.range / 1000
+    def uwb_data_callback(self, *msgs): 
+        for i, msg in enumerate(msgs):
+            if i==0 and not self.REF_position_flag :
+                self.REF_position = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y]
+                self.REF_position_flag = True
+            anchorID = msg.anchor_id
+            anchor_pose = np.array([msg.anchor_pose.position.x, msg.anchor_pose.position.y, msg.anchor_pose.position.z])
+            self.dictected_anchor_pos[anchorID - 1] = anchor_pose
+            self.dictedted_anchor_ranging[anchorID - 1] = msg.range / 1000
         
         robot_pos=[]
         if len(self.dictected_anchor_pos)!=0:
@@ -52,7 +74,10 @@ class LocalizationNode(Node):
         
         if robot_pos is not None and len(robot_pos) > 0:
             self.publish_data(robot_pos[0], robot_pos[1],robot_pos[2])
-
+    
+    def monitoring_callback(self, msg):
+        self.monitoring_msg = msg
+    
     def position_calculation(self, anchor_pos, dist):
         if len(anchor_pos) == 0:
             self.get_logger().warn("No anchor positions available.")
@@ -98,23 +123,81 @@ class LocalizationNode(Node):
             return x 
         
     def publish_data(self, pose_x, pose_y, pose_z):
-        robot_pos = PoseStamped()
+        tag_pos = PoseStamped()
+        tag_pos_LLH = Pose2D()
         
-        robot_pos.header.stamp = self.get_clock().now().to_msg()
-        robot_pos.header.frame_id = 'map'
+        tag_pos.header.stamp = self.get_clock().now().to_msg()
+        tag_pos.header.frame_id = 'map'
         
-        robot_pos.pose.position.x = float(pose_x)
-        robot_pos.pose.position.y = float(pose_y)
-        robot_pos.pose.position.z = float(pose_z)
+        tag_pos.pose.position.x = float(pose_x)
+        tag_pos.pose.position.y = float(pose_y)
+        tag_pos.pose.position.z = float(pose_z)
 
-        robot_pos.pose.orientation.x = 0.0
-        robot_pos.pose.orientation.y = 0.0
-        robot_pos.pose.orientation.z = 0.0
-        robot_pos.pose.orientation.w = 1.0
-
-        # self.get_logger().info(f"Publishing: {robot_pos.pose.position.x, robot_pos.pose.position.y, robot_pos.pose.position.z}")
-        self.pub.publish(robot_pos)
+        tag_pos.pose.orientation.x = 0.0
+        tag_pos.pose.orientation.y = 0.0
+        tag_pos.pose.orientation.z = 0.0
+        tag_pos.pose.orientation.w = 1.0
         
+        ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.lon, self.monitoring_msg.alt]
+        
+        tag_pos_NED = [float(pose_x) + self.REF_position[0], float(pose_y) + self.REF_position[1], -pose_z]
+        tag_pos_LLH_tmp = NED2LLH(NED=tag_pos_NED, ref_LLH=ref_LLH)
+        # self.get_logger().info(f"tag_pos_NED : {tag_pos_NED}")
+        # self.get_logger().info(f"tag_pos_LLH_tmp : {tag_pos_LLH_tmp}")
+        # self.get_logger().info(f"ref_LLH : {ref_LLH}")
+        # self.get_logger().info(f"self.REF_position : {self.REF_position}")
+        tag_pos_LLH.x = tag_pos_LLH_tmp[0]
+        tag_pos_LLH.y = tag_pos_LLH_tmp[1]
+        tag_pos_LLH.theta = 0.0
+
+        self.TagPose_pub.publish(tag_pos)
+        self.TagPoseLLH_pub.publish(tag_pos_LLH)
+
+
+# WGS-84 
+a = 6378137.0 
+f = 1.0 / 298.257223563  
+e2 = 2 * f - f * f 
+ 
+def NED2LLH(NED, ref_LLH):
+    lat_ref = np.deg2rad(ref_LLH[0])
+    lon_ref = np.deg2rad(ref_LLH[1])
+    
+    sin_lat_ref = np.sin(lat_ref)
+    cos_lat_ref = np.cos(lat_ref)
+    
+    N_ref = a / np.sqrt(1 - e2 * sin_lat_ref**2)
+
+    dlat = NED[0] / N_ref
+    dlon = NED[1] / (N_ref * cos_lat_ref)
+
+    # 결과 LLH 계산
+    lat = lat_ref + dlat
+    lon = lon_ref + dlon
+    h = ref_LLH[2] + NED[2]
+    
+    return [np.rad2deg(lat), np.rad2deg(lon), h]
+
+def LLH2NED(LLH, ref_LLH):
+    lat_ref = np.deg2rad(ref_LLH[0])
+    lon_ref = np.deg2rad(ref_LLH[1])
+    lat = np.deg2rad(LLH[0])
+    lon = np.deg2rad(LLH[1])
+    
+    sin_lat_ref = np.sin(lat_ref)
+    cos_lat_ref = np.cos(lat_ref)
+    
+    N_ref = a / np.sqrt(1 - e2 * sin_lat_ref**2)
+
+    dlat = lat - lat_ref
+    dlon = lon - lon_ref
+
+    NED_N = dlat * N_ref
+    NED_E = dlon * N_ref * cos_lat_ref
+    NED_D = LLH[2] - ref_LLH[2]
+    
+    return [NED_N, NED_E, NED_D]
+
 def main(args=None):
     rclpy.init(args=args)
     node = LocalizationNode()

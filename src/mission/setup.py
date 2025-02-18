@@ -24,6 +24,8 @@ setup(
             'start_mission_hover = mission.start_mission_hover:main',
             'start_mission_corner = mission.start_mission_corner:main',
             'start_mission_straight = mission.start_mission_straight:main',
+            'start_mission_circle = mission.start_mission_circle:main',
+            'uwb_reconnaissance = mission.uwb_reconnaissance:main',
         ],
     },
 )
