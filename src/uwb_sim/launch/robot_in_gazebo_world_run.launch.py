@@ -29,18 +29,6 @@ import xml.etree.ElementTree as ET
 
 from launch.event_handlers import OnProcessStart, OnProcessExit
 
-def create_timed_actions(actions_list, initial_delay, interval):
-    timed_actions = []
-    current_delay = initial_delay
-    for action in actions_list:
-        timed_action = launch.actions.TimerAction(
-            actions=[action],
-            period=current_delay
-        )
-        timed_actions.append(timed_action)
-        current_delay += interval
-    return timed_actions
-
 def launch_setup(context, *args, **kwargs):
 
     # Configuration
@@ -64,7 +52,7 @@ def launch_setup(context, *args, **kwargs):
     # MicroXRCEAgent udp4 -p 8888
     xrce_agent_process = ExecuteProcess(
         cmd=[FindExecutable(name='MicroXRCEAgent'), 'udp4', '-p', '8888'],
-        output='screen',
+        #output='screen',
     )
 
     # gazebo world
@@ -123,7 +111,7 @@ def launch_setup(context, *args, **kwargs):
         ]
         jinja_process = ExecuteProcess(
             cmd=jinja_cmd,
-            output='screen',
+            #output='screen',
         )
         drone_process_list.append(jinja_process)
 
@@ -133,7 +121,7 @@ def launch_setup(context, *args, **kwargs):
             executable='spawn_entity.py',
             #arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
             arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
-            output='log',
+            #output='screen',
             )
         drone_process_list.append(spawn_entity_node)
                 
@@ -156,14 +144,22 @@ def launch_setup(context, *args, **kwargs):
         )
         drone_process_list.append(px4_process)
         
-        start_mission_node = Node(
-            package='mission',
-            executable='start_mission_circle',
-            name='mission',
-            parameters=[{'system_id': i + 1}],
-            output='screen'
-        )
-        start_mission_nodes.append(start_mission_node)
+        # start_mission_node = Node(
+        #     package='mission',
+        #     executable='start_mission_circle',
+        #     name='mission',
+        #     parameters=[{'system_id': i + 1}],
+        #     output='screen'
+        # )
+        # start_mission_nodes.append(start_mission_node)
+    
+    uwb_reconn = Node(
+        package='mission',
+        executable='uwb_reconnaissance',
+        name='uwb_reconn',
+        parameters=[{'system_id_list': [i+1 for i in range(num_drone)]}],
+        output='screen'
+    )
     
     # rviz configuration
     rviz_config_file = PathJoinSubstitution(
@@ -190,7 +186,8 @@ def launch_setup(context, *args, **kwargs):
         xrce_agent_process,
         gazebo_node,
         *drone_process_list,
-        *start_mission_nodes,    
+        #*start_mission_nodes,
+        uwb_reconn,
         tag_pos_node,
         #tag_kalman_pos_node,
         #rviz_node,

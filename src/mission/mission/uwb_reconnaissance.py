@@ -1,10 +1,10 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-
+from rclpy.executors import MultiThreadedExecutor
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+from rclpy.qos import qos_profile_sensor_data
 
 from geometry_msgs.msg import Point
 from std_msgs.msg import Empty, UInt8
@@ -12,104 +12,117 @@ from std_msgs.msg import Empty, UInt8
 from enum import Enum
 import math
 import numpy as np
-from mission.px4_cmd import PX4CMD
+from mission.Agent import Agent
+
+import sys
+import ast
 
 class ProgressStatus(Enum):
-    DISARM=0
-    ARM=1
-    OFFBOARD=2
-    TAKEOFF=3
-    MISSION1=4
-    MISSION2=5
-    MISSION3=6
-    MISSION4=7
-    MISSION5=8
-    Done=9
+    ARM         =0
+    OFFBOARD    =1
+    TAKEOFF     =2
+    MISSION1    =3
+    MISSION2    =4
+    MISSION3    =5
+    MISSION4    =6
+    MISSION5    =7
+    Done        =8
 
-class StartMission(Node, PX4CMD):
+class StartMission(Node):
     def __init__(self):
-        Node.__init__(self, "start_mission")
-        PX4CMD.__init__(self)
+        super().__init__("Startmission")
         self.initialize_node()
-        self.disarmPos=[0,0]
         
     def initialize_node(self):
+        self.executor = MultiThreadedExecutor()
+        
         self.declare_parameter('system_id_list', [0])
-        self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
-        self.num_drone = self.system_id_list
+        self.system_id_list = list(self.get_parameter('system_id_list').get_parameter_value().integer_array_value)
         
-        self.get_logger().info(f"Configure DroneManager {self.system_id_list}")
+        print(f"Configure DroneManager {self.system_id_list}")
+        self.Agent_list = []
         
-        self.create_Sub_n_Pub()
+        self.init_Agents()
         
-        timer_period_monitoring = 0.5  # seconds
-        self.timer_monitoring_ = self.create_timer(timer_period_monitoring, self.in_progress_callback)
+        timer_period_monitoring = 2  # seconds
+        self.timer_progress = self.create_timer(timer_period_monitoring, self.in_progress_callback)
         
         self.circle_trajectory = self.generate_circular_trajectory(radius=5, frequency=10, total_time=5)
         self.circleProgressCount = 0
         
-        self.currentProgressStatus=ProgressStatus.DISARM
+        self.currentProgressStatus=ProgressStatus.ARM
         self.ProgressCheckMask = 0
-        self.ProgressCompleteMask = (1 << self.num_drone) - 1
+        self.ProgressCompleteMask = (1 << len(self.system_id_list)) - 1
         
-        self.REF_LLH = []
-        
-    def setREF_LLH(self):
-        pass
+    def init_Agents(self):
+        for sys_id in self.system_id_list:
+            self.Agent_list.append(Agent(sys_id))
+
         
     def in_progress_callback(self):
-        if not self.monitoring_msg_._pos_x:
-            return
+        if not self.Agent_list[0].monitoring_msg_:
+            self.get_logger().info(f"Can not refer to Monitoring msg")
+        
         self.get_logger().info(f"Current Progress : {self.currentProgressStatus}")
         
-        for sys_id in self.system_id_list:
-            if self.currentProgressStatus == ProgressStatus.DISARM:
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-                self.disarmPos[0]=self.POSX()
-                self.disarmPos[1]=self.POSY()
-                
-            if self.currentProgressStatus == ProgressStatus.ARM:
-                if not self.isArmed():
+        if self.currentProgressStatus == ProgressStatus.ARM:
+            for drone in self.Agent_list:                
+                if not drone.isArmed():
+                    self.get_logger().info(f"Drone {drone.system_id} is not Armed")
                     msg = VehicleCommandMsg()
-                    msg.target_system = self.system_id_
+                    msg.target_system = drone.system_id
                     msg.command = 400 # MAV_CMD_COMPONENT_ARM_DISARM=400,
                     msg.param1 = 1.0
-                    msg.confirmation=True
+                    msg.confirmation = True
                     msg.from_external = True      
-                    self.vehicle_command_publisher_.publish(msg)
+                    drone.vehicle_command_publisher.publish(msg)
                 else:
-                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+                    self.get_logger().info(f"Drone {drone.system_id} is Armed")
+                    self.ProgressCheckMask |= (1 << drone.system_id-1)
+                    
+            if self.ProgressCheckMask == self.ProgressCompleteMask:
+                self.ProgressCheckMask = 0
+                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             
-            if self.currentProgressStatus == ProgressStatus.OFFBOARD:
-                if not self.isOffboard():
+        if self.currentProgressStatus == ProgressStatus.OFFBOARD:
+            for drone in self.Agent_list:                
+                if not drone.isOffboard():
                     msg = VehicleCommandMsg()
-                    msg.target_system = self.system_id_
+                    msg.target_system = drone.system_id
                     msg.command = VehicleCommandMsg.VEHICLE_CMD_DO_SET_MODE
                     msg.param1 = 1.0
                     msg.param2 = 6.0 # PX4_CUSTOM_MAIN_MODE_OFFBOARD=6,
                     msg.from_external = True      
-                    self.vehicle_command_publisher_.publish(msg)
+                    drone.vehicle_command_publisher.publish(msg)
                 else:
-                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
-            
-            if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-                setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
-                success, distance = self.isOnSetpoint(setpoint)
+                    self.ProgressCheckMask |= (1 << drone.system_id-1)
+            if self.ProgressCheckMask == self.ProgressCompleteMask:
+                self.ProgressCheckMask = 0
+                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+        
+        if self.currentProgressStatus == ProgressStatus.TAKEOFF:
+            for drone in self.Agent_list:
+                setpoint=[drone.POSX(), drone.POSY(), -1.5]
+                success, distance = drone.isOnSetpoint(setpoint)            
                 if not success:
-                    self.setpoint(setpoint)
+                    drone.setpoint(setpoint) 
                 else:
-                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+                    self.ProgressCheckMask |= (1 << drone.system_id-1)
+                    
+            if self.ProgressCheckMask == self.ProgressCompleteMask:
+                self.ProgressCheckMask = 0
+                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             
-            if self.currentProgressStatus == ProgressStatus.MISSION1:
-                self.circleProgressCount += 1
-                
+        if self.currentProgressStatus == ProgressStatus.MISSION1:
+            self.circleProgressCount += 1
+            for drone in self.Agent_list:
                 setpoint=[self.circle_trajectory[self.circleProgressCount % 1000][0], self.circle_trajectory[self.circleProgressCount % 1000][1] , -1.5]
-                self.setpoint(setpoint)
+                drone.setpoint(setpoint)
 
-            if self.currentProgressStatus == ProgressStatus.Done:
-                self.get_logger().info(f"Current Progress : {self.currentProgressStatus}")
-                self.destroy_node()
-                rclpy.shutdown()
+        if self.currentProgressStatus == ProgressStatus.Done:
+            print(f"Current Progress : {self.currentProgressStatus}")
+            self.destroy_node()
+            rclpy.shutdown()
     
     def generate_circular_trajectory(self, radius=5, frequency=10, total_time=10):
         num_points = int(total_time * frequency)  # 총 샘플 수
@@ -127,13 +140,20 @@ def main(args=None):
     rclpy.init(args=args)
 
     start = StartMission()
+    
+    executor = MultiThreadedExecutor()
+    executor.add_node(start)
+    for i in start.Agent_list:
+        executor.add_node(i)
 
-    rclpy.spin(start)
+    executor.spin()
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
     start.destroy_node()
+    for i in start.Agent_list:
+        i.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':
