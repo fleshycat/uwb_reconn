@@ -19,12 +19,12 @@ class MonitoringFlagType(Enum):
     AUTO_MODE = 4 
     FAIL_SAFE_MODE = 5           # Not used
 
-class PX4CMD():
-    def __init__(self):
-        self.system_id_list = [ 1 ]
-        self.topic_prefix_fmu_ = ""
+class Agent(Node):
+    def __init__(self, sys_id):
+        super().__init__(f"agent_{sys_id}_node")
+        self.system_id = sys_id
+        self.topic_prefix_fmu = f"/drone{self.system_id}/fmu/"
         
-        self.monitoring_msg_ = Monitoring()
         timer_period_ocm = 0.1
         self.timer_ocm_ = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         
@@ -35,42 +35,36 @@ class PX4CMD():
         self.ocm_msg_.attitude = False
         self.ocm_msg_.body_rate = False
         self.ocm_msg_.actuator = False
-        
-        self.monitoring_flag = False
-        
-        self.REF_Pos = np.array()
-        
-    def create_Sub_n_Pub(self):
-        topic_prefix_fmu_list = [f"drone{sys_id}/fmu/" for sys_id in self.system_id_list]
-        self.monitoring_subscribers = [ self.create_subscription(
+        self.get_logger().info(f"{self.topic_prefix_fmu + 'out/monitoring'}")
+        self.monitoring_msg_ = Monitoring()
+        self.monitoring_subscriber = self.create_subscription(
                                         Monitoring, 
-                                        f'{topic_prefix_fmu}out/monitoring', 
+                                        self.topic_prefix_fmu + "out/monitoring", 
                                         self.monitoring_callback, 
                                         qos_profile_sensor_data
-                                        ) for topic_prefix_fmu in topic_prefix_fmu_list
-                                       ]
-        self.vehicle_command_publishers = [ self.create_publisher(
+                                        )
+        
+        self.vehicle_command_publisher = self.create_publisher(
                                             VehicleCommandMsg, 
-                                            f'{topic_prefix_fmu}in/vehicle_command', 
+                                            self.topic_prefix_fmu + "in/vehicle_command",
                                             qos_profile_sensor_data
-                                            ) for topic_prefix_fmu in topic_prefix_fmu_list
-                                           ] 
-        self.ocm_publishers = [ self.create_publisher(
+                                            )
+        
+        self.ocm_publisher = self.create_publisher(
                                 OffboardControlMode, 
-                                f'{topic_prefix_fmu}in/offboard_control_mode', 
+                                self.topic_prefix_fmu + "in/offboard_control_mode", 
                                 qos_profile_sensor_data
-                                ) for topic_prefix_fmu in topic_prefix_fmu_list
-                               ]
-        self.traj_setpoint_publishers = [ self.create_publisher(
+                                )
+        
+        self.traj_setpoint_publisher = self.create_publisher(
                                           TrajectorySetpointMsg, 
-                                          f'{topic_prefix_fmu}in/trajectory_setpoint', 
+                                          self.topic_prefix_fmu + "in/trajectory_setpoint",
                                           qos_profile_sensor_data
-                                          ) for topic_prefix_fmu in topic_prefix_fmu_list
-                                         ]
-        self.monitoring_msgs = []
+                                          )
+        self.monitoring_flag = False
         
     def timer_ocm_callback(self):
-        self.ocm_publisher_.publish(self.ocm_msg_)
+        self.ocm_publisher.publish(self.ocm_msg_)
               
     def monitoring_callback(self, msg):
         self.monitoring_msg_ = msg
@@ -78,7 +72,7 @@ class PX4CMD():
         
     def isArmed(self):
         return self.monitoringFlag(self.monitoring_msg_.status1, MonitoringFlagType.ARM_STATUS.value)
-    
+        
     def isOffboard(self):
         return self.monitoringFlag(self.monitoring_msg_.status1, MonitoringFlagType.OFFBOARD_MODE.value)
     
@@ -112,10 +106,7 @@ class PX4CMD():
         msg.position[2] = setpoint[2]
         msg.yaw = yaw
         msg.yawspeed = yawspeed
-        self.traj_setpoint_publisher_.publish(msg)
+        self.traj_setpoint_publisher.publish(msg)
             
     def monitoringFlag(self, aValue, aBit):
         return (aValue & (1<<aBit)) > 0
-    
-    def initREF_Pose(self):
-        pass
