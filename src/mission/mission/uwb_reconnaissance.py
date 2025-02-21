@@ -2,31 +2,26 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 
-from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
-from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+from px4_msgs.msg import VehicleCommand as VehicleCommandMsg
 from rclpy.qos import qos_profile_sensor_data
 
 from geometry_msgs.msg import Point
-from std_msgs.msg import Empty, UInt8
 
 from enum import Enum
 import math
 import numpy as np
 from mission.Agent import Agent
 
-import sys
-import ast
-
 class ProgressStatus(Enum):
     ARM         =0
     OFFBOARD    =1
     TAKEOFF     =2
-    MISSION1    =3
-    MISSION2    =4
-    MISSION3    =5
-    MISSION4    =6
-    MISSION5    =7
-    Done        =8
+    SEARCH      =3
+    DETECT      =4
+    REARRANGE   =5
+    HOVERING    =6
+    RESTART     =7
+    COMPLETE        =8
 
 class StartMission(Node):
     def __init__(self):
@@ -44,7 +39,7 @@ class StartMission(Node):
         
         self.init_Agents()
         
-        timer_period_monitoring = 2  # seconds
+        timer_period_monitoring = 0.1  # seconds
         self.timer_progress = self.create_timer(timer_period_monitoring, self.in_progress_callback)
         
         self.circle_trajectory = self.generate_circular_trajectory(radius=5, frequency=10, total_time=5)
@@ -57,8 +52,7 @@ class StartMission(Node):
     def init_Agents(self):
         for sys_id in self.system_id_list:
             self.Agent_list.append(Agent(sys_id))
-
-        
+    
     def in_progress_callback(self):
         if not self.Agent_list[0].monitoring_msg_:
             self.get_logger().info(f"Can not refer to Monitoring msg")
@@ -113,13 +107,13 @@ class StartMission(Node):
                 self.ProgressCheckMask = 0
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             
-        if self.currentProgressStatus == ProgressStatus.MISSION1:
+        if self.currentProgressStatus == ProgressStatus.SEARCH:
             self.circleProgressCount += 1
             for drone in self.Agent_list:
-                setpoint=[self.circle_trajectory[self.circleProgressCount % 1000][0], self.circle_trajectory[self.circleProgressCount % 1000][1] , -1.5]
+                setpoint=[self.circle_trajectory[self.circleProgressCount % 50][0], self.circle_trajectory[self.circleProgressCount % 50][1] , -1.5]
                 drone.setpoint(setpoint)
 
-        if self.currentProgressStatus == ProgressStatus.Done:
+        if self.currentProgressStatus == ProgressStatus.COMPLETE:
             print(f"Current Progress : {self.currentProgressStatus}")
             self.destroy_node()
             rclpy.shutdown()
