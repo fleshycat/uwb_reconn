@@ -24,7 +24,7 @@ from scipy.linalg import eigvals
 class LocalizationNode(Node):
     def __init__(self):
         super().__init__('localization_data_node')
-        self.declare_parameter('system_id_list', [0])
+        self.declare_parameter('system_id_list', [1,2,3,4])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         
         self.topic_anchor_prefix = "/uwb/anchor_"
@@ -33,11 +33,17 @@ class LocalizationNode(Node):
         self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
         self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
         
-        self.TagPose_pub = self.create_publisher(PoseStamped, 'tag', 10)
-        self.TagPoseLLH_pub = self.create_publisher(Pose2D, 'tagLLH', 10)
+        self.TagPose_pub = self.create_publisher(PoseStamped, 'tag', qos_profile_sensor_data)
+        self.TagPoseLLH_pub = self.create_publisher(Pose2D, 'tagLLH', qos_profile_sensor_data)
         
         self.uwb_topic_subscribers = [
-            Subscriber(self, Ranging, f'{self.topic_anchor_prefix}{sys_id}/ranging') for sys_id in self.system_id_list
+            Subscriber(
+                self, 
+                Ranging, 
+                f'{self.topic_anchor_prefix}{sys_id}/ranging',
+                qos_profile=qos_profile_sensor_data,
+                ) 
+            for sys_id in self.system_id_list
             ]
 
         self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
@@ -138,18 +144,21 @@ class LocalizationNode(Node):
         tag_pos.pose.orientation.z = 0.0
         tag_pos.pose.orientation.w = 1.0
         
-        ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.lon, self.monitoring_msg.alt]
+        ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
         
-        tag_pos_NED = [float(pose_x) + self.REF_position[0], float(pose_y) + self.REF_position[1], -pose_z]
+        tag_pos_NED = [float(pose_y) - self.REF_position[1], float(pose_x) - self.REF_position[0], -float(pose_z)]
         tag_pos_LLH_tmp = NED2LLH(NED=tag_pos_NED, ref_LLH=ref_LLH)
+        
+        # self.get_logger().info(f"tag_pos : {float(pose_x)}, {float(pose_y)}")
         # self.get_logger().info(f"tag_pos_NED : {tag_pos_NED}")
         # self.get_logger().info(f"tag_pos_LLH_tmp : {tag_pos_LLH_tmp}")
+        # self.get_logger().info(f"anchor_LLH : {self.monitoring_msg.lat}, {self.monitoring_msg.lon}")
         # self.get_logger().info(f"ref_LLH : {ref_LLH}")
         # self.get_logger().info(f"self.REF_position : {self.REF_position}")
+        
         tag_pos_LLH.x = tag_pos_LLH_tmp[0]
         tag_pos_LLH.y = tag_pos_LLH_tmp[1]
         tag_pos_LLH.theta = 0.0
-
         self.TagPose_pub.publish(tag_pos)
         self.TagPoseLLH_pub.publish(tag_pos_LLH)
 

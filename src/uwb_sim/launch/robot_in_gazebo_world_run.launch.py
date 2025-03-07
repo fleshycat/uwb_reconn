@@ -58,9 +58,9 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    tag_position = np.random.uniform(-10, 10, 2)
+    tag_position = np.random.uniform(0, 15, 2)
     tag_position = np.append(tag_position, 2)# Random tag position
-    simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0,0,2]) 
+    simulation_world = jinja_world.render(tag_id = 1, tag_pose = tag_position) 
     world_file_path = os.path.join('/tmp', 'output.world')
     with open(world_file_path, 'w') as f:
         f.write(simulation_world)
@@ -119,8 +119,8 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            #arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
+            #arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
             #output='screen',
             )
         drone_process_list.append(spawn_entity_node)
@@ -146,7 +146,7 @@ def launch_setup(context, *args, **kwargs):
         
         # start_mission_node = Node(
         #     package='mission',
-        #     executable='start_mission_circle',
+        #     executable='ocm_publisher',
         #     name='mission',
         #     parameters=[{'system_id': i + 1}],
         #     output='screen'
@@ -157,7 +157,8 @@ def launch_setup(context, *args, **kwargs):
         package='mission',
         executable='uwb_reconnaissance',
         name='uwb_reconn',
-        parameters=[{'system_id_list': [i+1 for i in range(num_drone)]}],
+        parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
+                     'formation_square_length': 4.0}],
         output='screen'
     )
     

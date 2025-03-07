@@ -6,7 +6,7 @@ from px4_msgs.msg import Monitoring, OffboardControlMode, TrajectorySetpoint as 
 
 from geometry_msgs.msg import Point
 from std_msgs.msg import Empty, UInt8
-
+from uwb_msgs.msg import Ranging
 from enum import Enum
 import math
 import numpy as np
@@ -44,11 +44,21 @@ class Agent(Node):
                                         qos_profile_sensor_data
                                         )
         
+        self.uwb_topic_prefix = f"/uwb/anchor_{self.system_id}/ranging"
+        
+        self.ranging_msg = Ranging()
+        self.uwb_data_subscriber = self.create_subscription(
+                                        Ranging, 
+                                        self.uwb_topic_prefix, 
+                                        self.uwb_data_callback, 
+                                        qos_profile_sensor_data
+                                        )
+        
         self.vehicle_command_publisher = self.create_publisher(
-                                            VehicleCommandMsg, 
-                                            self.topic_prefix_fmu + "in/vehicle_command",
-                                            qos_profile_sensor_data
-                                            )
+                                        VehicleCommandMsg, 
+                                        self.topic_prefix_fmu + "in/vehicle_command",
+                                        qos_profile_sensor_data
+                                        )
         
         self.ocm_publisher = self.create_publisher(
                                 OffboardControlMode, 
@@ -62,6 +72,9 @@ class Agent(Node):
                                           qos_profile_sensor_data
                                           )
         self.monitoring_flag = False
+    
+    def __del__(self):
+        print(f"Node {self.get_name()} is being destroyed.")
         
     def timer_ocm_callback(self):
         self.ocm_publisher.publish(self.ocm_msg_)
@@ -70,6 +83,9 @@ class Agent(Node):
         self.monitoring_msg_ = msg
         self.monitoring_flag = True
         
+    def uwb_data_callback(self, msg):
+        self.ranging_msg = msg
+    
     def isArmed(self):
         return self.monitoringFlag(self.monitoring_msg_.status1, MonitoringFlagType.ARM_STATUS.value)
         
@@ -107,6 +123,15 @@ class Agent(Node):
         msg.yaw = yaw
         msg.yawspeed = yawspeed
         self.traj_setpoint_publisher.publish(msg)
-            
+    
+    def isDetected(self):
+        if self.ranging_msg.los_type != Ranging.LOS_TYPE_NLOS:
+            return True if self.ranging_msg.range < ( 7000 ) else False
+        else:
+            return False
+    
+    def getHeaderTime(self):
+        return self.ranging_msg.header._stamp
+    
     def monitoringFlag(self, aValue, aBit):
         return (aValue & (1<<aBit)) > 0
