@@ -749,7 +749,7 @@ namespace gazebo
             stringStream << "/gtec/toa/anchors" << this->anchorId;*/
             std::string topicAnchor = topic_prefix_uwb + "/marker";
 
-            this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::Ranging>(topicRanging, 10);
+            this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::Ranging>(topicRanging, rclcpp::SensorDataQoS());
             this->uwbAnchorMarkerPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor, 10);
 
             // visualize the uwb rays
