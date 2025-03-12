@@ -12,7 +12,7 @@
                 "uwb_sim",
                 "robot_in_gazebo_world_run.launch.py",
                 "world_type:=empty",
-                "num_drone:=1"
+                "num_drone:=4"
             ],
             "group": {
                 "kind": "build",

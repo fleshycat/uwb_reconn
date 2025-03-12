@@ -1,7 +1,7 @@
 
 import rclpy
 from rclpy.node import Node
-from gtec_msgs.msg import Ranging, RangingList
+from uwb_msgs.msg import Ranging, RangingList
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
@@ -11,7 +11,6 @@ from scipy.optimize import minimize
 from tf2_ros import TransformBroadcaster
 
 import numpy as np
-import scipy.stats
 from scipy.linalg import eigvals
 
 # refer to https://soohwan-justin.tistory.com/47
@@ -26,13 +25,16 @@ class KalmanLocalizationNode(Node):
         self.pre_corrected_pos=[0.0, 0.0]
         self.pre_time_sec, self.pre_time_nanosec = self.get_clock().now().seconds_nanoseconds()
         
-        self.declare_parameter('system_id', 1)
-        self.system_id_ = self.get_parameter('system_id').get_parameter_value().integer_value
+        self.declare_parameter('system_id_list', [0])
+        self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
 
-        self.declare_parameter('robot_type', 'iris')
-        self.robot_type_ = self.get_parameter('robot_type').get_parameter_value().string_value
+        self.topic_anchor_prefix = "/uwb/anchor_"
+        self.topic_imu_prefix = "/iris/id_"
         
-        self.topic_uwb_ = f"/gtec/toa/id_{self.system_id_}/ranging"
+        for sys_id in self.system_id_list:
+            globals()["self.anchor_{}_subscriber".format(sys_id)] = self.create_subscription(Ranging, f'{self.topic_anchor_prefix}{sys_id}/ranging', self.uwb_callback, 10)
+            globals()["self.imu_{}_subscriber".format(sys_id)] = self.create_subscription(Imu, f'{self.topic_imu_prefix}{sys_id}/imu', self.imu_callback, 10)
+            
         # self.topic_imu_ = f"/{self.robot_type_}/id_{self.system_id_}/imu"
         self.topic_imu_ = "iris/id_down/imu"
         

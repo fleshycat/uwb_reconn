@@ -77,7 +77,7 @@ def launch_setup(context, *args, **kwargs):
         executable='sqrrange_leastsqr_localization',
         name='tag_pos',
         output='screen',
-        parameters=[{'system_id_list': [1, 2, 3, 4]}],
+        parameters=[{'system_id_list': [i+1 for i in range(num_drone)]}],
     )
     
     start_mission_nodes=[]
