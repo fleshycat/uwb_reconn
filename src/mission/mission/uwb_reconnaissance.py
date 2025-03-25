@@ -167,7 +167,6 @@ class StartMission(Node):
             start = self.detection_message['sys_id'] - 1
             reArrange_adjust = []
             for i in range(n):
-                drone = self.Agent_list[(start + i) % n]
                 offset = self.takeoff_offset[(start + i) % n]
                 sec_offset = self.takeoff_offset[start]
                 reArrange_adjust.append([self.reArrangeSetpoint[i][0] + offset[0] - sec_offset[0],

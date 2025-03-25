@@ -1,5 +1,11 @@
 int16 anchor_id
-int16 tag_id
-float32 range
-float32 distance
-float32 diff
+int32 range
+int32 seq
+float64 rss
+float64 error_estimation
+
+uint8 los_type
+uint8 LOS_TYPE_LOS = 0
+uint8 LOS_TYPE_NLOS = 1
+uint8 LOS_TYPE_NLOS_HARD = 3
+uint8 LOS_TYPE_NLOS_SOFT = 2

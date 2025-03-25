@@ -42,9 +42,6 @@ class StartMission(Node):
         self.declare_parameter('system_id', 1)
         self.system_id_ = self.get_parameter('system_id').get_parameter_value().integer_value
         
-        self.declare_parameter('robot_type', 'iris')
-        self.robot_type_ = self.get_parameter('robot_type').get_parameter_value().string_value
-        
         self.get_logger().info(f"Configure DroneManager {self.system_id_}")
         
         self.topic_prefix_fmu_ = f"drone{self.system_id_}/fmu/"
@@ -82,7 +79,7 @@ class StartMission(Node):
     def in_progress_callback(self):
         if not self.monitoring_msg_._pos_x:
             return
-        print("Current Progress :", self.currentProgressStatus)
+        # print("Current Progress :", self.currentProgressStatus)
         if self.currentProgressStatus == ProgressStatus.DISARM:
             self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             self.disarmPos[0]=self.POSX()
@@ -113,21 +110,17 @@ class StartMission(Node):
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-            if self.robot_type_ == "rover":
-                self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
+            setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
+            success, distance = self.isOnSetpoint(setpoint)
+            if not success:
+                self.setpoint(setpoint)
+                print("distance", distance)
             else:
-                setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
-                success, distance = self.isOnSetpoint(setpoint)
-                if not success:
-                    self.setpoint(setpoint)
-                    print("distance", distance)
-                    print(f"{self.robot_type_} : {setpoint}")
+                if self.mission_time_count < 60:
+                    self.mission_time_count += 1
                 else:
-                    if self.mission_time_count < 60:
-                        self.mission_time_count += 1
-                    else:
-                        self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 6)
-                        self.disarmPos=[self.POSX(), self.POSY()]        
+                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 6)
+                    self.disarmPos=[self.POSX(), self.POSY()]        
         
         if self.currentProgressStatus == ProgressStatus.Done:
             print("Current Progress :", self.currentProgressStatus)
