@@ -4,7 +4,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
-# from uwb_msgs.msg import Ranging
+from uwb_msgs.msg import Ranging
 from enum import Enum
 
 class Mode(Enum):
@@ -21,14 +21,15 @@ class DroneManager(Node):
         
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"  #"drone1/manager/"
         self.topic_prefix_fmu = f"drone{self.system_id}/fmu/"          #"drone1/fmu/"
-        
+        self.topic_prefix_uwb = f"drone{self.system_id}/uwb/ranging"
+
         self.monitoring_msg = Monitoring()
         self.uwb_sub_msg = LinktrackNodeframe2()
-        # self.uwb_pub_msg = Ranging()
+        self.uwb_pub_msg = Ranging()
         
         ## Publisher ##
         self.ocm_publisher = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu}in/offboard_control_mode', qos_profile_sensor_data)                    #"drone1/fmu/in/offboard_control_mode"
-        # self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
+        self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
@@ -57,23 +58,30 @@ class DroneManager(Node):
     def uwb_callback(self, msg):
         self.uwb_sub_msg = msg
         
-    # def timer_uwb_callback(self):
-    #     self.uwb_pub_msg.header.frame_id            = "map"
-    #     self.uwb_pub_msg.header.stamp               = self.get_clock().now().to_msg()
-    #     self.uwb_pub_msg.anchor_id                  = self.system_id
-    #     self.uwb_pub_msg.range                      = self.uwb_sub_msg.range
-    #     self.uwb_pub_msg.seq                        = self.uwb_sub_msg.seq
-    #     self.uwb_pub_msg.rss                        = self.uwb_sub_msg.rss
-    #     self.uwb_pub_msg.error_estimation           = self.uwb_sub_msg.error_estimation
-    #     self.uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
-    #     self.uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
-    #     self.uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
-    #     self.uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
-    #     self.uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
-    #     self.uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
-    #     self.uwb_pub_msg.los_type                   = self.uwb_sub_msg.los_type
+    def timer_uwb_callback(self):
+        # self.uwb_pub_msg.header.frame_id            = "map"
+        # self.uwb_pub_msg.header.stamp               = self.get_clock().now().to_msg()
+        self.uwb_pub_msg.anchor_id                  = self.system_id
+        self.uwb_pub_msg.local_time                 = self.uwb_sub_msg.local_time
+        self.uwb_pub_msg.system_time                = self.uwb_sub_msg.system_time
+        for node in self.uwb_sub_msg.nodes:
+            # Only handle the distance of the tag
+            # If there is no tag, the value is 0.0
+            if node.id == 0:
+                self.uwb_pub_msg.dis = node.dis
+        # self.uwb_pub_msg.range                      = self.uwb_sub_msg.range
+        # self.uwb_pub_msg.seq                        = self.uwb_sub_msg.seq
+        # self.uwb_pub_msg.rss                        = self.uwb_sub_msg.rss
+        # self.uwb_pub_msg.error_estimation           = self.uwb_sub_msg.error_estimation
+        self.uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
+        self.uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
+        self.uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
+        self.uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
+        self.uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
+        self.uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
+        # self.uwb_pub_msg.los_type                   = self.uwb_sub_msg.los_type
         
-    #     self.uwb_ranging_publisher.publish(self.uwb_pub_msg)
+        self.uwb_ranging_publisher.publish(self.uwb_pub_msg)
     
 def main(args=None):
     rclpy.init(args=args)
