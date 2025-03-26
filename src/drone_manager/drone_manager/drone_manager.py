@@ -59,27 +59,27 @@ class DroneManager(Node):
         self.uwb_sub_msg = msg
         
     def timer_uwb_callback(self):
-        # self.uwb_pub_msg.header.frame_id            = "map"
-        # self.uwb_pub_msg.header.stamp               = self.get_clock().now().to_msg()
+        self.uwb_pub_msg.header.frame_id            = "map"
+        self.uwb_pub_msg.header.stamp               = self.get_clock().now().to_msg()
         self.uwb_pub_msg.anchor_id                  = self.system_id
-        self.uwb_pub_msg.local_time                 = self.uwb_sub_msg.local_time
-        self.uwb_pub_msg.system_time                = self.uwb_sub_msg.system_time
+        
+        # Only handle the distance of the tag
+        # If there is no tag, the value is -1.0
+        self.uwb_pub_msg.range = -1
         for node in self.uwb_sub_msg.nodes:
-            # Only handle the distance of the tag
-            # If there is no tag, the value is 0.0
             if node.id == 0:
-                self.uwb_pub_msg.dis = node.dis
-        # self.uwb_pub_msg.range                      = self.uwb_sub_msg.range
-        # self.uwb_pub_msg.seq                        = self.uwb_sub_msg.seq
-        # self.uwb_pub_msg.rss                        = self.uwb_sub_msg.rss
-        # self.uwb_pub_msg.error_estimation           = self.uwb_sub_msg.error_estimation
+                self.uwb_pub_msg.range = int(node.dis * 1000)
+                self.uwb_pub_msg.rss = node.rx_rssi
+                self.uwb_pub_msg.error_estimation = node.fp_rssi
+                break
+        
+        self.uwb_pub_msg.seq                        = self.uwb_sub_msg.system_time % 256
         self.uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
         self.uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
         self.uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
         self.uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         self.uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
         self.uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
-        # self.uwb_pub_msg.los_type                   = self.uwb_sub_msg.los_type
         
         self.uwb_ranging_publisher.publish(self.uwb_pub_msg)
     
