@@ -81,14 +81,15 @@ class LocalizationNode(Node):
                 self.takeoff_offset.append(NED)
             self.takeoff_offset_flag = False
             return
-        
-        for i, msg in enumerate(msgs):
-            # anchorID = msg.anchor_id
-            anchor_pose = np.array([msg.anchor_pose.position.x + self.takeoff_offset[i][0], 
-                                    msg.anchor_pose.position.y + self.takeoff_offset[i][1], 
-                                    msg.anchor_pose.position.z + self.takeoff_offset[i][2]])
-            self.dictected_anchor_pos[i] = anchor_pose
-            self.dictedted_anchor_ranging[i] = msg.range / 1000
+        self.dictected_anchor_pos = np.array([])
+        self.dictedted_anchor_ranging = np.array([])
+        for i, msg in enumerate(msgs):    
+            if msg.range != -1:
+                anchor_pose = np.array([msg.anchor_pose.position.x + self.takeoff_offset[i][0], 
+                                        msg.anchor_pose.position.y + self.takeoff_offset[i][1], 
+                                        msg.anchor_pose.position.z + self.takeoff_offset[i][2]])
+                self.dictected_anchor_pos.append(anchor_pose)
+                self.dictedted_anchor_ranging.append(msg.range / 1000)
         
         robot_pos=[]
         if len(self.dictected_anchor_pos)!=0:
