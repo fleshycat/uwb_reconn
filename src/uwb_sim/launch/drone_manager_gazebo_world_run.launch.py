@@ -58,8 +58,9 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    tag_position = np.random.uniform(0, 15, 2)
-    tag_position = np.append(tag_position, 2)# Random tag position
+    x_tag_position = np.random.uniform(-15, 15)  # Random tag position
+    y_tag_position = np.random.uniform(0, 15)
+    tag_position = np.array([x_tag_position, y_tag_position, 2])
     simulation_world = jinja_world.render(tag_id = 1, tag_pose = tag_position) 
     # simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0, 0]) 
     world_file_path = os.path.join('/tmp', 'output.world')
@@ -105,7 +106,8 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + np.random.uniform(5, 10)*i }', '-y', f'{-15 + np.random.uniform(-3, 3)}' ],
+            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
             #output='screen',
             )
