@@ -28,8 +28,11 @@ class LocalizationNode(Node):
         self.declare_parameter('system_id_list', [1,2,3,4])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         
-        self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
-        self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
+        # self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
+        # self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
+        
+        self.dictected_anchor_pos = []
+        self.dictedted_anchor_ranging = []
         
         self.TagPose_pub = self.create_publisher(PoseStamped, 'tag', qos_profile_sensor_data)
         self.TagPoseLLH_pub = self.create_publisher(Pose2D, 'tagLLH', qos_profile_sensor_data)
@@ -79,21 +82,25 @@ class LocalizationNode(Node):
                 
                 NED = LLH2NED(LLH, ref_LLH)
                 self.takeoff_offset.append(NED)
+            print("self.takeoff_offset:", self.takeoff_offset, sep="\n")
             self.takeoff_offset_flag = False
             return
-        self.dictected_anchor_pos = np.array([])
-        self.dictedted_anchor_ranging = np.array([])
+        self.dictected_anchor_pos.clear()
+        self.dictedted_anchor_ranging.clear()
         for i, msg in enumerate(msgs):    
             if msg.range != -1:
-                anchor_pose = np.array([msg.anchor_pose.position.x + self.takeoff_offset[i][0], 
-                                        msg.anchor_pose.position.y + self.takeoff_offset[i][1], 
-                                        msg.anchor_pose.position.z + self.takeoff_offset[i][2]])
+                anchor_pose = [msg.anchor_pose.position.x + self.takeoff_offset[i][0],
+                               msg.anchor_pose.position.y + self.takeoff_offset[i][1], 
+                               msg.anchor_pose.position.z + self.takeoff_offset[i][2]]
                 self.dictected_anchor_pos.append(anchor_pose)
-                self.dictedted_anchor_ranging.append(msg.range / 1000)
+                self.dictedted_anchor_ranging.append([msg.range / 1000])
+                # self.dictected_anchor_pos.append(anchor_pose)
+                # self.dictedted_anchor_ranging.append(msg.range / 1000)
         
         robot_pos=[]
+        
         if len(self.dictected_anchor_pos)!=0:
-            robot_pos = self.position_calculation(self.dictected_anchor_pos, self.dictedted_anchor_ranging)
+            robot_pos = self.position_calculation(np.array(self.dictected_anchor_pos), np.array(self.dictedted_anchor_ranging))
         
         if robot_pos is not None and len(robot_pos) > 0:
             self.publish_data(robot_pos[0], robot_pos[1],robot_pos[2])
@@ -106,7 +113,6 @@ class LocalizationNode(Node):
             self.get_logger().warn("No anchor positions available.")
             return
         else:
-            
             A=(-2*anchor_pos).transpose()
             vertical = len(anchor_pos[0])
             horizontal = len(anchor_pos)
