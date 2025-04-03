@@ -1231,7 +1231,7 @@ namespace gazebo
                     }
                 }
                 this->uwbRangingPub->publish(rangingMsg);
-                this->uwbAnchorMarkerPub->publish(anchor_marker);
+                // this->uwbAnchorMarkerPub->publish(anchor_marker);
                 this->sequence++;
             }
         }
