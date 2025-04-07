@@ -66,25 +66,40 @@ class LocalizationNode(Node):
         self.tf_broadcaster = TransformBroadcaster(self)
 
     def uwb_data_callback(self, *msgs): 
-        if self.takeoff_offset_flag:
-            for i, msg in enumerate(msgs):
-                if msg.anchor_pose.orientation.x == 0.0:
-                    return
-                if i==0:
-                    ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
-                LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
-                self.get_logger().info(f"ref_LLH : {ref_LLH}")
-                self.get_logger().info(f"LLH : {LLH}")
+        # if self.takeoff_offset_flag:
+        #     for i, msg in enumerate(msgs):
+        #         if msg.anchor_pose.orientation.x == 0.0:
+        #             return
+        #         if i==0:
+        #             ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+        #         LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+        #         self.get_logger().info(f"ref_LLH : {ref_LLH}")
+        #         self.get_logger().info(f"LLH : {LLH}")
                 
-                if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
-                    self.get_logger().warn("LLH ref_LLH NaN.")
-                    return
+        #         if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+        #             self.get_logger().warn("LLH ref_LLH NaN.")
+        #             return
                 
-                NED = LLH2NED(LLH, ref_LLH)
-                self.takeoff_offset.append(NED)
-            print("self.takeoff_offset:", self.takeoff_offset, sep="\n")
-            self.takeoff_offset_flag = False
-            return
+        #         NED = LLH2NED(LLH, ref_LLH)
+        #         self.takeoff_offset.append(NED)
+        #     print("self.takeoff_offset:", self.takeoff_offset, sep="\n")
+        #     self.takeoff_offset_flag = False
+        #     return
+        self.takeoff_offset.clear()
+        for i, msg in enumerate(msgs):
+            if msg.anchor_pose.orientation.x == 0.0:
+                return
+            if i==0:
+                ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+            LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+            
+            if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+                self.get_logger().warn("LLH ref_LLH NaN.")
+                return
+            
+            NED = LLH2NED(LLH, ref_LLH)
+            self.takeoff_offset.append(NED)
+            
         self.dictected_anchor_pos.clear()
         self.dictedted_anchor_ranging.clear()
         for i, msg in enumerate(msgs):    
