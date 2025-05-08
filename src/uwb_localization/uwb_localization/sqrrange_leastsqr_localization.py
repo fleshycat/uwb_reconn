@@ -47,8 +47,8 @@ class LocalizationNode(Node):
             for sys_id in self.system_id_list
             ]
 
-        self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
-        self.REF_drone_monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
+        # self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
+        # self.REF_drone_monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
         self.monitoring_msg = Monitoring()
         
         self.takeoff_offset = []
@@ -91,6 +91,9 @@ class LocalizationNode(Node):
                 return
             if i==0:
                 ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+                self.monitoring_msg.ref_lat = msg.anchor_pose.orientation.x
+                self.monitoring_msg.ref_lon = msg.anchor_pose.orientation.y
+                self.monitoring_msg.ref_alt = msg.anchor_pose.orientation.z
             LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
             
             if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
@@ -99,7 +102,7 @@ class LocalizationNode(Node):
             
             NED = LLH2NED(LLH, ref_LLH)
             self.takeoff_offset.append(NED)
-            
+        
         self.dictected_anchor_pos.clear()
         self.dictedted_anchor_ranging.clear()
         for i, msg in enumerate(msgs):    
@@ -112,16 +115,17 @@ class LocalizationNode(Node):
                 # self.dictected_anchor_pos.append(anchor_pose)
                 # self.dictedted_anchor_ranging.append(msg.range / 1000)
         
+
         robot_pos=[]
         
         if len(self.dictected_anchor_pos)!=0:
             robot_pos = self.position_calculation(np.array(self.dictected_anchor_pos), np.array(self.dictedted_anchor_ranging))
         
         if robot_pos is not None and len(robot_pos) > 0:
-            self.publish_data(robot_pos[0], robot_pos[1],robot_pos[2])
+            self.publish_data(robot_pos[0], robot_pos[1], robot_pos[2])
     
-    def monitoring_callback(self, msg):
-        self.monitoring_msg = msg
+    # def monitoring_callback(self, msg):
+    #     self.monitoring_msg = msg
     
     def position_calculation(self, anchor_pos, dist):
         if len(anchor_pos) == 0:
