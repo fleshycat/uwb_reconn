@@ -33,10 +33,20 @@ def launch_setup(context, *args, **kwargs):
         )
     )
     
+    # ros2 bag record
+    bag_record = ExecuteProcess(
+        cmd=[
+            'ros2', 'bag', 'record',
+            '/drone1/manager/out/ranging'
+        ],
+        output='screen',
+    )
+    
     nodes_to_start = [
         xrce_agent_process,
         drone_manager_node,
         linktrack_launch,
+        bag_record,
     ]
 
     return nodes_to_start
