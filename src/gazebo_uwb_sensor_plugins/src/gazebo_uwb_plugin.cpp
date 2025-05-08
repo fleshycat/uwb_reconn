@@ -1172,8 +1172,14 @@ namespace gazebo
                                 losType = NLOS;
                             }
 
-                            rangingMsg.range = rangingValue;
-                            rangingMsg.rss = powerValue;
+                            if(rangingValue > 10000.0){
+                                rangingMsg.range = -1;
+                                rangingMsg.rss = -1;
+                            } 
+                            else {
+                                rangingMsg.range = rangingValue;
+                                rangingMsg.rss = powerValue;
+                            }
                         }
 
                         if (losType == NLOS)
