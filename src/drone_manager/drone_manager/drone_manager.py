@@ -1,3 +1,4 @@
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -6,6 +7,8 @@ from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, O
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
 from uwb_msgs.msg import Ranging
 from enum import Enum
+
+from std_msgs.msg import Header
 
 class Mode(Enum):
     pass
@@ -34,7 +37,7 @@ class DroneManager(Node):
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, 'nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)
-
+        self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
 
         self.ocm_msg = OffboardControlMode()
         self.ocm_msg.position = True
@@ -44,6 +47,9 @@ class DroneManager(Node):
         self.ocm_msg.body_rate = False
         self.ocm_msg.actuator = False
         
+        self.gcs_timestamp = Header()
+        self.init_timestamp = self.get_clock().now().to_msg().sec
+        
         timer_period_ocm = 0.1
         self.timer_ocm = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         timer_period_uwb = 0.04
@@ -52,6 +58,10 @@ class DroneManager(Node):
     def timer_ocm_callback(self):
         self.ocm_publisher.publish(self.ocm_msg)
     
+    def timestamp_callback(self, msg):
+        self.get_logger().info("System Time Synchronize.")
+        self.gcs_timestamp = msg
+        
     def monitoring_callback(self, msg):
         self.monitoring_msg = msg
 
@@ -60,7 +70,11 @@ class DroneManager(Node):
         
     def timer_uwb_callback(self):
         self.uwb_pub_msg.header.frame_id            = "map"
-        self.uwb_pub_msg.header.stamp               = self.get_clock().now().to_msg()
+        
+        now_timestamp = self.get_clock().now().to_msg().sec
+        self.uwb_pub_msg.header.stamp.sec = self.gcs_timestamp.stamp.sec + ( now_timestamp - self.init_timestamp )
+        self.uwb_pub_msg.header.stamp.nanosec = self.get_clock().now().to_msg().nanosec
+        
         self.uwb_pub_msg.anchor_id                  = self.system_id
         
         # Only handle the distance of the tag
