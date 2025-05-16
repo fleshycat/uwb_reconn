@@ -3,7 +3,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
-from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor
+from px4_msgs.msg import SuvMonitoring, LogMessage, VehicleStatus, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor
+from px4_msgs.msg import Monitoring, OffboardControlMode
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
 from uwb_msgs.msg import Ranging
 from enum import Enum
@@ -24,7 +25,7 @@ class DroneManager(Node):
         
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"  #"drone1/manager/"
         self.topic_prefix_fmu = f"drone{self.system_id}/fmu/"          #"drone1/fmu/"
-        self.topic_prefix_uwb = f"drone{self.system_id}/uwb/ranging"
+        # self.topic_prefix_uwb = f"drone{self.system_id}/uwb/ranging"
 
         self.monitoring_msg = Monitoring()
         self.uwb_sub_msg = LinktrackNodeframe2()
@@ -36,8 +37,8 @@ class DroneManager(Node):
         
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
-        self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, 'nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)
-        self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
+        self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, 'nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)   # From UWB Sensor
+        self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)                          # From GCS(qhac)
 
         self.ocm_msg = OffboardControlMode()
         self.ocm_msg.position = True
@@ -52,7 +53,7 @@ class DroneManager(Node):
         
         timer_period_ocm = 0.1
         self.timer_ocm = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
-        timer_period_uwb = 0.04
+        timer_period_uwb = 0.04 # 25Hz
         self.timer_uwb = self.create_timer(timer_period_uwb, self.timer_uwb_callback)
         
     def timer_ocm_callback(self):
@@ -88,9 +89,11 @@ class DroneManager(Node):
                 break
         
         self.uwb_pub_msg.seq                        = self.uwb_sub_msg.system_time % 256
+        # Drone NED position
         self.uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
         self.uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
         self.uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
+        # Ref (RTK-GPS) 
         self.uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         self.uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
         self.uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt

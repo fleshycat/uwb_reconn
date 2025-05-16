@@ -12,7 +12,7 @@ def launch_setup(context, *args, **kwargs):
     # MicroXRCEAgent udp4 -p 8888
     xrce_agent_process = ExecuteProcess(
         cmd=[FindExecutable(name='MicroXRCEAgent'), 'udp4', '-p', '8888'],
-        #output='screen',
+        output='screen',
     )
     
     # Drone manager
@@ -39,7 +39,8 @@ def launch_setup(context, *args, **kwargs):
     bag_record = ExecuteProcess(
         cmd=[
             'ros2', 'bag', 'record',
-            '/drone1/manager/out/ranging'
+            '/drone1/manager/out/ranging',
+            '/drone1/fmu/out/monitoring',
         ],
         output='screen',
     )
