@@ -3,13 +3,14 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
-from px4_msgs.msg import SuvMonitoring, LogMessage, VehicleStatus, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor
+from px4_msgs.msg import SuvMonitoring, LogMessage, VehicleStatus, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
 from px4_msgs.msg import Monitoring, OffboardControlMode
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
 from uwb_msgs.msg import Ranging
 from enum import Enum
 
 from std_msgs.msg import Header
+import math
 
 class Mode(Enum):
     pass
@@ -30,16 +31,22 @@ class DroneManager(Node):
         self.monitoring_msg = Monitoring()
         self.uwb_sub_msg = LinktrackNodeframe2()
         self.uwb_pub_msg = Ranging()
+        self.global_path = []
+        self.global_path_threshold = 0.1
         
         ## Publisher ##
         self.ocm_publisher = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu}in/offboard_control_mode', qos_profile_sensor_data)                    #"drone1/fmu/in/offboard_control_mode"
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
+        self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
         
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, 'nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)   # From UWB Sensor
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)                          # From GCS(qhac)
-
+        self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
+        timer_period_global_path = 0.1
+        self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
+        
         self.ocm_msg = OffboardControlMode()
         self.ocm_msg.position = True
         self.ocm_msg.velocity = False
@@ -99,6 +106,41 @@ class DroneManager(Node):
         self.uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
         
         self.uwb_ranging_publisher.publish(self.uwb_pub_msg)
+        
+    def global_path_callback(self, msg):
+        self.get_logger().error("handle_global_path subscription called")
+        self.global_path = []
+        for point in msg.waypoints:
+            self.global_path.append([
+                point.position[0],
+                point.position[1],
+                point.position[2],
+                point.jerk[0]
+            ])
+    
+    def timer_global_path_callback(self):
+        # if self.mode != Mode.EGO:
+        #     return
+        if len(self.global_path) == 0:
+            return
+        else:
+            traj_setpoint_msg = TrajectorySetpointMsg()
+            traj_setpoint_msg.position[0] = self.global_path[0][0]
+            traj_setpoint_msg.position[1] = self.global_path[0][1]
+            traj_setpoint_msg.position[2] = self.global_path[0][2]
+            dx = self.global_path[0][0] - self.monitoring_msg.pos_x
+            dy = self.global_path[0][1] - self.monitoring_msg.pos_y
+            desired_yaw = math.atan2(dy, dx)
+            traj_setpoint_msg.yaw = desired_yaw
+            self.traj_setpoint_publisher.publish(traj_setpoint_msg)
+            if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
+                                    target_pos = [self.global_path[0][0], self.global_path[0][1]]
+                                    ) <= self.global_path_threshold:    
+                self.global_path.pop(0)
+                self.get_logger().error("WayPoint Arrived")
+    
+    def remain_distance(self, current_pos, target_pos):
+        return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
     
 def main(args=None):
     rclpy.init(args=args)
