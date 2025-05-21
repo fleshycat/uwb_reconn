@@ -6,9 +6,12 @@ from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
 from uwb_msgs.msg import RangingDiff, Ranging
 
+## only for simulation ##
+import std_msgs.msg as std_msgs
+from sensor_msgs.msg  import PointCloud2
+from sensor_msgs_py import point_cloud2
+
 from std_msgs.msg import Header
-from geometry_msgs.msg import PoseStamped, Point as GeoPoint
-from visualization_msgs.msg import Marker
 
 from drone_manager.class_particle import ParticleFilter
 from drone_manager.formation import FormationForce
@@ -44,13 +47,15 @@ class DroneManager(Node):
         self.global_path = []
         self.global_path_threshold = 0.1
         self.takeoff_offset_dic = {}
-        self.agent_monitoring_dic = {f'{i}':Ranging() for i in self.system_id_list}
+        self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         
         ## Publisher ##
         self.ocm_publisher = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu}in/offboard_control_mode', qos_profile_sensor_data)                    #"drone1/fmu/in/offboard_control_mode"
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
-        
+        self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data)
+        self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
+
         ## Subscriber ##
         self.uwb_subscriber = self.create_subscription(RangingDiff, self.topic_prefix_uwb, self.uwb_msg_callback, qos_profile_sensor_data)
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
@@ -60,10 +65,6 @@ class DroneManager(Node):
             self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_monitoring_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
         ]
-        
-        
-        ## Rviz Publisher ##
-        self.target_pub = self.create_publisher(Marker, f'{self.topic_prefix_manager}target', qos_profile_sensor_data)
         
         ## OCM Msg ##
         self.ocm_msg = OffboardControlMode()
@@ -102,11 +103,11 @@ class DroneManager(Node):
         ## Timer ##
         timer_period_ocm = 0.1
         self.timer_ocm = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
-        timer_period_uwb = 0.04
+        timer_period_uwb = 0.04 # 25hz
         self.timer_uwb = self.create_timer(timer_period_uwb, self.timer_uwb_callback)
         timer_period_global_path = 0.1
         self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
-        timer_period_mission = 0.04
+        timer_period_mission = 0. # 25hz
         self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
         
         self.gcs_timestamp = Header()
@@ -148,6 +149,7 @@ class DroneManager(Node):
             return
         self.update_uwb_data_list()
         self.particle_step()
+        
     
     def timer_uwb_callback(self):
         uwb_pub_msg = Ranging()
@@ -168,7 +170,7 @@ class DroneManager(Node):
         uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
         
         self.uwb_ranging_publisher.publish(uwb_pub_msg)
-        self.agent_monitoring_dic[f'{self.system_id}'] = uwb_pub_msg
+        self.agent_uwb_range_dic[f'{self.system_id}'] = uwb_pub_msg
     
     ## Sub callback ##
     def monitoring_callback(self, msg):
@@ -191,36 +193,38 @@ class DroneManager(Node):
     def particle_step(self):        
         if len(self.uwb_data_list) <= 0:
             self.get_logger().info(f"DroneManager{self.system_id}: No uwb data available")
+            self.have_target = False
             return
         
         sensor_positions = [row[0] for row in self.uwb_data_list]
         measurements = [row[1] for row in self.uwb_data_list]
         noise_stds = [row[2] for row in self.uwb_data_list]
         
-        self.get_logger().info(f"DroneManager{self.system_id}: Particle Filter running")
         self.particle_filter.step(sensor_positions, measurements, noise_stds, [self.monitoring_msg.pos_x,self.monitoring_msg.pos_y])
         self.particle = self.particle_filter.particles
         
         self.target = self.particle_filter.estimate()
         self.estimate = [self.target[0], self.target[1]]
-        self.rviz_target_publish(self.estimate)
-        self.have_targtet = True
+        self.publish_target(self.estimate)
+        if self.particle is not None:
+            self.publish_particle_cloud(self.particle)
+        self.have_target = True
     
     def update_uwb_data_list(self):
         self.uwb_data_list.clear()
         for i in self.system_id_list:
-            if self.agent_monitoring_dic[f'{i}'].range / 1000 <= self.uwb_threshold:
+            if self.agent_uwb_range_dic[f'{i}'].range / 1000 <= self.uwb_threshold:
                 self.uwb_data_list.append([
-                    [self.agent_monitoring_dic[f'{i}'].anchor_pose.position.x + self.takeoff_offset_dic[f'{i}'][0], 
-                     self.agent_monitoring_dic[f'{i}'].anchor_pose.position.y + self.takeoff_offset_dic[f'{i}'][1]],
-                    self.agent_monitoring_dic[f'{i}'].range / 1000,
-                    self.agent_monitoring_dic[f'{i}'].range / 1000 * 0.03,
+                    [self.agent_uwb_range_dic[f'{i}'].anchor_pose.position.x + self.takeoff_offset_dic[f'{i}'][0], 
+                     self.agent_uwb_range_dic[f'{i}'].anchor_pose.position.y + self.takeoff_offset_dic[f'{i}'][1]],
+                    self.agent_uwb_range_dic[f'{i}'].range / 1000,
+                    self.agent_uwb_range_dic[f'{i}'].range / 1000 * 0.03,
                     ])
                 
     def make_monitoring_callback(self, sys_id):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Monitoring Subscriber")
         def callback(msg):
-            self.agent_monitoring_dic[f'{sys_id}'] = msg
+            self.agent_uwb_range_dic[f'{sys_id}'] = msg
         return callback
     
     def timestamp_callback(self, msg):
@@ -233,48 +237,46 @@ class DroneManager(Node):
     def calculate_takeoff_offset(self):
         self.takeoff_offset_dic.clear()
         ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
-        self.get_logger().info(f"DroneManager {self.system_id} : ref_LLH : {ref_LLH}")
-        for key, value in self.agent_monitoring_dic.items():
+        # self.get_logger().info(f"DroneManager {self.system_id} : ref_LLH : {ref_LLH}")
+        for key, value in self.agent_uwb_range_dic.items():
             if value.anchor_pose.orientation.x == 0.0:
                 return
             LLH = [value.anchor_pose.orientation.x, value.anchor_pose.orientation.y, value.anchor_pose.orientation.z]
-            self.get_logger().info(f"Key : {key}, LLH : {LLH}")
+            # self.get_logger().info(f"Key : {key}, LLH : {LLH}")
             if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
-                self.get_logger().warn("LLH ref_LLH NaN.")
+                # self.get_logger().warn("LLH ref_LLH NaN.")
                 return
             NED = LLH2NED(LLH, ref_LLH)
             self.takeoff_offset_dic[f'{key}'] = NED
-        print("self.takeoff_offset:", self.takeoff_offset_dic, sep="\n")
+        # print("self.takeoff_offset:", self.takeoff_offset_dic, sep="\n")
         return
     
-    ## Rviz publish ##
-    def rviz_target_publish(self, target):
-        m = Marker()
-        m.header.frame_id = 'map'
-        m.header.stamp    = self.get_clock().now().to_msg()
-        m.ns    = 'estimate'
-        m.id    = self.system_id
-        m.type  = Marker.SPHERE    # 또는 Marker.CUBE
-        m.action= Marker.ADD
+    ## Publisher ##
+    def publish_target(self, target):
+        target = TrajectorySetpointMsg()
+        target_pos_ned = [self.target[0],
+                          self.target[1],
+                          0.1]
+        ref_llh = [self.monitoring_msg.ref_lat,
+                   self.monitoring_msg.ref_lon,
+                   self.monitoring_msg.ref_alt]
+        target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
+        target.position[0] = target_pos_llh[0]
+        target.position[1] = target_pos_llh[1]
+        target.velocity[0] = target_pos_ned[0]
+        target.velocity[1] = target_pos_ned[1]
+        self.target_publisher.publish(target)
 
-        # 크기 설정 (0.2m x 0.2m x 0.2m)
-        m.scale.x = 0.2
-        m.scale.y = 0.2
-        m.scale.z = 0.2
+    def publish_particle_cloud(self, particles: np.ndarray):
+        header = std_msgs.Header()
+        header.frame_id = 'map'
+        header.stamp    = self.get_clock().now().to_msg()
 
-        # 색 설정 (녹색)
-        m.color.g = 1.0
-        m.color.a = 1.0
+        points = [(float(x), float(y), 0.0) for x,y in particles]
+        cloud_msg = point_cloud2.create_cloud_xyz32(header, points)
+        self.particle_publisher.publish(cloud_msg)
 
-        # 위치 지정
-        m.pose.position.x = float(target[0])
-        m.pose.position.y = float(target[1])
-        m.pose.position.z = 1.0
-        # 기본 orientation (w=1)
-        m.pose.orientation.w = 1.0
 
-        self.target_pub.publish(m)
-    
 # WGS-84 
 a = 6378137.0 
 f = 1.0 / 298.257223563  
