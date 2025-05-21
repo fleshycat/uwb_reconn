@@ -58,8 +58,10 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    x_tag_position = np.random.uniform(-15, 15)  # Random tag position
-    y_tag_position = np.random.uniform(0, 15)
+    # x_tag_position = np.random.uniform(-15, 15)  # Random tag position
+    # y_tag_position = np.random.uniform(0, 15)
+    x_tag_position = 0.0  # Random tag position
+    y_tag_position = 0.0
     tag_position = np.array([x_tag_position, y_tag_position, 2])
     simulation_world = jinja_world.render(tag_id = 1, tag_pose = tag_position) 
     # simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0, 0]) 
@@ -106,9 +108,9 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + np.random.uniform(5, 10)*i }', '-y', f'{-15 + np.random.uniform(-3, 3)}' ],
+            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + np.random.uniform(5, 10)*i }', '-y', f'{-15 + np.random.uniform(-3, 3)}' ],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
-            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
             #output='screen',
             )
         drone_process_list.append(spawn_entity_node)
@@ -141,13 +143,13 @@ def launch_setup(context, *args, **kwargs):
         )
         drone_process_list.append(drone_manager_node)
         
-        # start_mission_node = Node(
-        #     package='mission',
-        #     executable='start_mission_hover',
-        #     parameters=[{'system_id': i + 1}],
-        #     output='screen',
-        # )
-        # drone_process_list.append(start_mission_node)
+        start_mission_node = Node(
+            package='mission',
+            executable='start_mission_hover',
+            parameters=[{'system_id': i + 1}],
+            output='screen',
+        )
+        drone_process_list.append(start_mission_node)
     
     uwb_reconn = Node(
         package='mission',
@@ -158,9 +160,20 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     )
     
+    rviz_visualizer = Node(
+        package='rviz_visualizer',
+        executable='visualizer',
+        name='rviz_visualizer',
+        parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
+                     'real_tag_pos' : [x_tag_position, y_tag_position],
+                     'real_ref_agent_pos' : [3.0, 3.0],
+                     }],
+        output='screen'
+    )
+
     # rviz configuration
     rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("uwb_sim"), "confs", "default.rviz"]
+        [FindPackageShare("uwb_sim"), "confs", "custom.rviz"]
     )
     
     # rviz node for visualizing robot model
@@ -168,11 +181,11 @@ def launch_setup(context, *args, **kwargs):
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        output="log",
+        output="screen",
         arguments=["-d", rviz_config_file],
         parameters=[{'use_sim_time': True}],
     )
-    
+
     nodes_to_start = [
         px4_lat,
         px4_lon,
@@ -184,6 +197,8 @@ def launch_setup(context, *args, **kwargs):
         gazebo_node,
         *drone_process_list,
         # tag_pos_node,
+        rviz_visualizer,
+        rviz_node,
     ]
 
     return nodes_to_start
