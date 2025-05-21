@@ -114,7 +114,6 @@ class StartMission(Node):
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 self.setpoint(setpoint)
-                print("distance", distance)
             else:
                 if self.mission_time_count < 60:
                     self.mission_time_count += 1
@@ -123,7 +122,6 @@ class StartMission(Node):
                     self.disarmPos=[self.POSX(), self.POSY()]        
         
         if self.currentProgressStatus == ProgressStatus.Done:
-            print("Current Progress :", self.currentProgressStatus)
             self.destroy_node()
             rclpy.shutdown()
               
