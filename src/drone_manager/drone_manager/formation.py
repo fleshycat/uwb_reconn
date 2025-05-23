@@ -19,8 +19,9 @@ class FormationForce:
         L = -np.ones((self.n, self.n))
         np.fill_diagonal(L, self.n - 1)
         self.L = L
+
         # desired raw signature and trace
-        S0_des = self.X_des.T @ L @ self.X_des
+        S0_des = self.X_des.T @ L @ self.X_des # shape (3,3)
         tr_des = np.trace(S0_des)
         self.S_des_norm = S0_des / tr_des
         self.tr_des_raw = tr_des
@@ -33,11 +34,12 @@ class FormationForce:
                           for i, j in self.pair_edges]
 
     def compute(self, points):
-        X = np.vstack([p.pos for p in points])  # shape (n,2)
+        X = np.array(points)   # shape (n,3)
         # raw and normalized shape signature
-        S0 = X.T @ self.L @ X
+        S0 = X.T @ self.L @ X     # shape (3,3)
         trS = np.trace(S0)
         S_norm = (S0 / trS) if trS > 1e-8 else np.zeros_like(S0)
+        
         # shape gradient
         grad_shape = 2 * (self.L @ X) @ (S_norm - self.S_des_norm)
         # scale penalty (trace difference)

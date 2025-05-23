@@ -8,8 +8,8 @@ class ParticleFilter:
         self.num_particles = num_particles
         self.particles = None
         self.weights   = None
-        self.process_noise_std = 0.01
-        self.region_radius = 10.0
+        self.process_noise_std = 0.3
+        self.region_radius = 12.0
         self.step_counter = 0
     
     def initialize(self, sensor_position):
@@ -24,7 +24,7 @@ class ParticleFilter:
         self.particles = np.column_stack((xs, ys))
         self.weights   = np.ones(self.num_particles) / self.num_particles
     
-    def inject_shared(self, external_estimates, n_shared=50, sigma=1.0):
+    def inject_shared(self, external_estimates, n_shared=50, sigma=0.5):
         if self.particles is None:
             return
         
@@ -87,8 +87,8 @@ class ParticleFilter:
         #     self.step_counter = 0
         
         
-        center = self.estimate()
-        # center = current_pos 
+        # center = self.estimate()
+        center = current_pos 
         
         dists = np.linalg.norm(self.particles - center, axis=1)
         mask_inside = (dists <= self.region_radius)
