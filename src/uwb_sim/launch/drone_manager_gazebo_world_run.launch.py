@@ -58,10 +58,10 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    # x_tag_position = np.random.uniform(-15, 15)  # Random tag position
-    # y_tag_position = np.random.uniform(0, 15)
-    x_tag_position = 0.0  # Random tag position
-    y_tag_position = 0.0
+    x_tag_position = np.random.uniform(-10, 10)  # Random tag position
+    y_tag_position = np.random.uniform(0, 15)
+    # x_tag_position = 0.0  # Random tag position
+    # y_tag_position = 0.0
     tag_position = np.array([x_tag_position, y_tag_position, 2])
     simulation_world = jinja_world.render(tag_id = 1, tag_pose = tag_position) 
     # simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0, 0]) 
@@ -105,14 +105,35 @@ def launch_setup(context, *args, **kwargs):
         drone_process_list.append(jinja_process)
 
         # node to spawn robot model in gazebo
+        # ## random
+        agent_x = -12.0 + np.random.uniform(5, 7)*i
+        agent_y = -15.0 + np.random.uniform(-3, 3)
+
+        ## one line
+        # agent_x = -10.0 + 5.0*i
+        # agent_y = -15.0
+
+        # ## square
+        # agent_x =  3.0 * (-1)**i
+        # agent_y = 3.0 * (-1 if i%3==0 else 1)
+
+        # ## dae
+        # agent_x = -6.0 + 3*i
+        # agent_y = -25.0 +1*i
+
+        if i == 0 :
+            ref_agent_x = agent_x
+            ref_agent_y = agent_y
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + np.random.uniform(5, 10)*i }', '-y', f'{-15 + np.random.uniform(-3, 3)}' ],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{agent_x}', '-y', f'{agent_y}' ],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
+            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
+            # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ -6 + 3*i }', '-y', f'{-25 +1*i}' ],
             #output='screen',
             )
+        
         drone_process_list.append(spawn_entity_node)
                 
         # PX4
@@ -145,7 +166,7 @@ def launch_setup(context, *args, **kwargs):
         
         start_mission_node = Node(
             package='mission',
-            executable='start_mission_hover',
+            executable='start_mission_uwb_straight',
             parameters=[{'system_id': i + 1}],
             output='screen',
         )
@@ -166,7 +187,7 @@ def launch_setup(context, *args, **kwargs):
         name='rviz_visualizer',
         parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
                      'real_tag_pos' : [x_tag_position, y_tag_position],
-                     'real_ref_agent_pos' : [3.0, 3.0],
+                     'real_ref_agent_pos' : [ref_agent_x, ref_agent_y],
                      }],
         output='screen'
     )
