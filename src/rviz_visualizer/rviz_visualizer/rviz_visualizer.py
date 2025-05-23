@@ -31,6 +31,7 @@ class rivzVisualizer(Node):
         self.agents_target_dic = {f'{i}':TrajectorySetpointMsg() for i in self.system_id_list}
         self.agents_pos_dic = {f'{i}':Monitoring() for i in self.system_id_list}
         self.agents_particle_dic = {f'{i}':PointCloud2() for i in self.system_id_list}
+        self.agents_gradient_dic = {f'{i}':TrajectorySetpointMsg() for i in self.system_id_list}
 
         self.topic_prefix_rviz = "rviz/visualize"
 
@@ -46,6 +47,7 @@ class rivzVisualizer(Node):
             self.create_publisher(PointCloud2, f'{self.topic_prefix_rviz}/agent{i}/particle_cloud', qos_profile_sensor_data)
             for i in self.system_id_list
         ]
+        self.grdients_publisher = self.create_publisher(MarkerArray, f'{self.topic_prefix_rviz}/gradients', qos_profile_sensor_data)
 
         ## Subscriber ##
         self.agent_pos_subscribers = [
@@ -60,6 +62,11 @@ class rivzVisualizer(Node):
             self.create_subscription(PointCloud2, f'drone{i}/manager/out/particle_cloud', self.make_particle_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list
         ]
+        self.gradients_subscribers = [
+            self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/gradient', self.make_gradient_callback(i), qos_profile_sensor_data)
+            for i in self.system_id_list
+        ]
+
 
         ## Timer ##
         timer_period_target = 0.1
@@ -81,10 +88,16 @@ class rivzVisualizer(Node):
             self.agents_particle_dic[f'{sys_id}'] = msg
         return callback
     
+    def make_gradient_callback(self, sys_id):
+        def callback(msg):
+            self.agents_gradient_dic[f'{sys_id}'] = msg
+        return callback
+
     def publish_rviz_topic(self):
         self.publish_target()
         self.publish_agents()
         self.publish_tag()
+        self.publish_gradient()
         for i in self.system_id_list:
             self.publish_particle_cloud(i) 
 
@@ -186,11 +199,53 @@ class rivzVisualizer(Node):
         tag.color.b = 0.6
         tag.color.a = 0.7
         tag.pose.position.x = self.real_tag_pos[0] - self.real_ref_agent_pos[0]
-        tag.pose.position.y = self.real_tag_pos[1] + self.real_ref_agent_pos[1]
+        tag.pose.position.y = self.real_tag_pos[1] - self.real_ref_agent_pos[1]
         tag.pose.position.z = 0.1
         tag.pose.orientation.w = 1.0
-        self.real_tag_pos
         self.real_tag_pos_publisher.publish(tag)
+
+    def publish_gradient(self):
+        if len(self.agents_gradient_dic) == 0:
+            return
+        gradients = MarkerArray()
+        ref_llh = [
+                self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_lat,
+                self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_lon,
+                self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_alt,
+            ]
+        stamp = self.get_clock().now().to_msg()
+        for key, value in self.agents_gradient_dic.items():
+            gradient = Marker()
+            gradient.header.frame_id = 'map'
+            gradient.header.stamp = stamp
+            gradient.ns = 'gradient'
+            gradient.id = int(key)
+            gradient.type = Marker.ARROW
+            gradient.action = Marker.ADD
+            agent_pos_llh = [
+                self.agents_pos_dic[f'{key}'].lat,
+                self.agents_pos_dic[f'{key}'].lon,
+                self.agents_pos_dic[f'{key}'].alt,
+            ]
+            agent_pos_ned = LLH2NED(agent_pos_llh, ref_llh)
+            gradient.pose.position.x = agent_pos_ned[1]
+            gradient.pose.position.y = agent_pos_ned[0]
+            gradient.pose.position.z = - self.agents_pos_dic[f'{key}'].pos_z
+            
+            gradient.pose.orientation.x = float(value.velocity[1])
+            gradient.pose.orientation.y = float(value.velocity[0])
+            gradient.pose.orientation.z = float(value.velocity[2])
+            gradient.pose.orientation.w = 0.0
+            gradient.scale.x = 1.0
+            gradient.scale.y = 0.05
+            gradient.scale.z = 0.05
+            gradient.color.r = 1.0
+            gradient.color.g = 0.0
+            gradient.color.b = 0.0
+            gradient.color.a = 1.0
+            gradients.markers.append(gradient)
+        self.grdients_publisher.publish(gradients)
+            
 
     def publish_particle_cloud(self, sys_id):
         key = str(sys_id)
@@ -212,8 +267,11 @@ class rivzVisualizer(Node):
                 self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_lon,
                 self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_alt,
             ]
-        
-        agent_pos = [self.agents_pos_dic[f'{sys_id}'].lat, self.agents_pos_dic[f'{sys_id}'].lon, self.agents_pos_dic[f'{sys_id}'].alt]
+        agent_pos = [
+            self.agents_pos_dic[f'{sys_id}'].ref_lat, 
+            self.agents_pos_dic[f'{sys_id}'].ref_lon, 
+            self.agents_pos_dic[f'{sys_id}'].ref_alt
+            ]
         agent_pos_ned = LLH2NED(agent_pos, ref_llh)
         colored_pts = []
         for x, y, z in raw_points:
@@ -234,8 +292,6 @@ class rivzVisualizer(Node):
 
         cloud_msg = point_cloud2.create_cloud(header, fields, colored_pts)
         self.particle_publishers[sys_id - 1].publish(cloud_msg)
-
-
 
 
 # WGS-84 

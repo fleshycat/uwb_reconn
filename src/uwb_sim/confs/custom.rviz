@@ -20,6 +20,8 @@ Panels:
         - /PointCloud23/Topic1
         - /PointCloud24
         - /PointCloud24/Topic1
+        - /MarkerArray3
+        - /MarkerArray3/Topic1
       Splitter Ratio: 0.5
     Tree Height: 1022
   - Class: rviz_common/Selection
@@ -39,7 +41,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -120,7 +122,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
+      Size (m): 0.05000000074505806
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -154,7 +156,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
+      Size (m): 0.05000000074505806
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -188,7 +190,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
+      Size (m): 0.05000000074505806
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -222,7 +224,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
+      Size (m): 0.05000000074505806
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -233,6 +235,18 @@ Visualization Manager:
         Value: /rviz/visualize/agent4/particle_cloud
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        gradient: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /rviz/visualize/gradients
       Value: true
   Enabled: true
   Global Options:
@@ -280,25 +294,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 24.432289123535156
+      Distance: 38.83950424194336
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -1.9971575736999512
-        Y: 1.0614614486694336
-        Z: 3.655895709991455
+        X: -0.1875373125076294
+        Y: 11.42427921295166
+        Z: 11.368672370910645
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3553985357284546
+      Pitch: 0.2253994345664978
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.645397663116455
+      Yaw: 3.2253684997558594
     Saved: ~
 Window Geometry:
   Displays:
