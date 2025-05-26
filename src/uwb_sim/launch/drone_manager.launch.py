@@ -40,7 +40,7 @@ def launch_setup(context, *args, **kwargs):
         cmd=[
             'ros2', 'bag', 'record',
             '/drone1/manager/out/ranging',
-            '/drone1/fmu/out/monitoring',
+            '/drone1/manager/out/monitoring',
         ],
         output='screen',
     )
