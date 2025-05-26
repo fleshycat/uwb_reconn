@@ -77,7 +77,6 @@ class DroneManager(Node):
         self.monitoring_msg = msg
 
     def timer_monitoring_callback(self):
-        msg = Monitoring()
         self.monitoring_publisher.publish(self.monitoring_msg)
 
     def uwb_callback(self, msg):
