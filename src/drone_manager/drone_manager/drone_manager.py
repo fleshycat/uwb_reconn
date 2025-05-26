@@ -38,7 +38,7 @@ class DroneManager(Node):
         self.ocm_publisher = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu}in/offboard_control_mode', qos_profile_sensor_data)                    #"drone1/fmu/in/offboard_control_mode"
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
-        self.monitoring_publihser = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
+        self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
 
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
@@ -78,7 +78,7 @@ class DroneManager(Node):
 
     def timer_monitoring_callback(self):
         msg = Monitoring()
-        self.monitoring_publihser.publish(msg)
+        self.monitoring_publisher.publish(self.monitoring_msg)
 
     def uwb_callback(self, msg):
         self.uwb_sub_msg = msg
