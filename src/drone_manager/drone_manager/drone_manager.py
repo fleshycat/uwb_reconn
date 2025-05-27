@@ -42,7 +42,7 @@ class DroneManager(Node):
 
         ## Subscriber ##
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
-        self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, 'nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)   # From UWB Sensor
+        self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, f'drone{self.system_id}/nlink_linktrack_nodeframe2', self.uwb_callback, qos_profile_sensor_data)   # From UWB Sensor
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)                          # From GCS(qhac)
         self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
         timer_period_global_path = 0.1
