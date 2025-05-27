@@ -9,7 +9,7 @@ class ParticleFilter:
         self.particles = None
         self.weights   = None
         self.process_noise_std = 0.3
-        self.region_radius = 12.0
+        self.region_radius = 20.0
         self.step_counter = 0
     
     def initialize(self, sensor_position):
@@ -59,7 +59,9 @@ class ParticleFilter:
     def update(self, sensor_positions, measurements, noise_stds):
         for pos, meas, ns in zip(sensor_positions, measurements, noise_stds):
             expected = np.linalg.norm(self.particles - pos, axis=1)
-            likelihood = np.exp(-0.5 * ((meas - expected)/ (ns)) **2 ) 
+            eps = 1e-6
+            std = np.maximum(ns, eps)
+            likelihood = np.exp(-0.5 * ((meas - expected)/ (std)) **2 ) 
             self.weights *= likelihood
         self.weights += 1e-300
         self.weights /= np.sum(self.weights)
