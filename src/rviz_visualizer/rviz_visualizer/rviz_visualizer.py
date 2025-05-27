@@ -7,7 +7,7 @@ from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, O
 # from uwb_msgs.msg import RangingDiff, Ranging
 
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import PoseArray, Pose
+from geometry_msgs.msg import PoseArray, Pose, Point
 from scipy.spatial.transform import Rotation as R
 import numpy as np
 import std_msgs.msg as std_msgs
@@ -228,17 +228,24 @@ class rivzVisualizer(Node):
                 self.agents_pos_dic[f'{key}'].alt,
             ]
             agent_pos_ned = LLH2NED(agent_pos_llh, ref_llh)
-            gradient.pose.position.x = agent_pos_ned[1]
-            gradient.pose.position.y = agent_pos_ned[0]
-            gradient.pose.position.z = - self.agents_pos_dic[f'{key}'].pos_z
             
-            gradient.pose.orientation.x = float(value.velocity[1])
-            gradient.pose.orientation.y = float(value.velocity[0])
-            gradient.pose.orientation.z = float(value.velocity[2])
-            gradient.pose.orientation.w = 0.0
-            gradient.scale.x = 1.0
+            start = Point()
+            start.x = agent_pos_ned[1]
+            start.y = agent_pos_ned[0]
+            start.z = -self.agents_pos_dic[key].pos_z
+
+            v = np.array([value.velocity[1], value.velocity[0], -value.velocity[2]])
+            d = v / np.linalg.norm(v) 
+
+            length = 3.0
+            end = Point()
+            end.x = start.x + d[0] * length
+            end.y = start.y + d[1] * length
+            end.z = start.z + d[2] * length
+            gradient.scale.x = 0.05
             gradient.scale.y = 0.05
-            gradient.scale.z = 0.05
+            gradient.scale.z = 0.0
+            gradient.points = [start, end]
             gradient.color.r = 1.0
             gradient.color.g = 0.0
             gradient.color.b = 0.0
