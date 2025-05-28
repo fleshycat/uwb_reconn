@@ -83,8 +83,8 @@ class DroneManager(Node):
                                         k_pair=2.0,
                                         k_shape=5.0)
         self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
-                                        c_rep=10.0,
-                                        cutoff=5.0,
+                                        c_rep=1.0,
+                                        cutoff=2.0,
                                         sigma=1.5)
         self.f_target = TargetForce([0,0], k_mission=2.0)
         length = np.linalg.norm(np.array(desired_formation[0]) - np.array(desired_formation[1]))
@@ -108,8 +108,6 @@ class DroneManager(Node):
         self.timer_uwb = self.create_timer(timer_period_uwb, self.timer_uwb_callback)
         timer_period_global_path = 0.1
         self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
-        # timer_period_gradient = 0.04
-        # self.timer_gradient = self.create_timer(timer_period_gradient, self.timer_gradient_callback)
         timer_period_mission = 0.04 # 25hz
         self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
         timer_period_monitoring = 0.02 # 50hz
@@ -437,19 +435,17 @@ class DroneManager(Node):
     def calculate_takeoff_offset(self):
         self.takeoff_offset_dic.clear()
         ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
-        # self.get_logger().info(f"DroneManager {self.system_id} : ref_LLH : {ref_LLH}")
         for key, value in self.agent_uwb_range_dic.items():
-            if value.anchor_pose.orientation.x == 0.0:
-                return
-            LLH = [value.anchor_pose.orientation.x, value.anchor_pose.orientation.y, value.anchor_pose.orientation.z]
-            # self.get_logger().info(f"Key : {key}, LLH : {LLH}")
-            if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
-                # self.get_logger().warn("LLH ref_LLH NaN.")
-                return
-            NED = LLH2NED(LLH, ref_LLH)
-            self.takeoff_offset_dic[f'{key}'] = NED
-        # print("self.takeoff_offset:", self.takeoff_offset_dic, sep="\n")
-        return
+            try:
+                if value.anchor_pose.orientation.x == 0.0:
+                    raise ValueError("Orientation.x is zero")
+                LLH = [value.anchor_pose.orientation.x, value.anchor_pose.orientation.y, value.anchor_pose.orientation.z]
+                if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+                    raise ValueError("NaN in coordinates")
+                NED = LLH2NED(LLH, ref_LLH)
+                self.takeoff_offset_dic[f'{key}'] = NED
+            except Exception as e:
+                self.get_logger().warn(f"Key {key} skipped: {e}")
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
