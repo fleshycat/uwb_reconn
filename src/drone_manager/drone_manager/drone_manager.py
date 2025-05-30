@@ -79,16 +79,16 @@ class DroneManager(Node):
         ## Potential Field ##
         desired_formation = [(0,0,0), (6,0,0), (6,6,0), (0,6,0)]
         self.f_formation = FormationForce(desired_positions = desired_formation,
-                                        k_scale=2.0,
-                                        k_pair=2.0,
-                                        k_shape=5.0)
+                                        k_scale=5.0,
+                                        k_pair=5.0,
+                                        k_shape=8.0)
         self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
-                                        c_rep=1.0,
+                                        c_rep=3.0,
                                         cutoff=2.0,
-                                        sigma=1.5)
-        self.f_target = TargetForce([0,0], k_mission=2.0)
+                                        sigma=1.0)
+        self.f_target = TargetForce([0,0], k_target=1.0)
         length = np.linalg.norm(np.array(desired_formation[0]) - np.array(desired_formation[1]))
-        self.target_bound = np.sqrt(2) * length / 2.0
+        self.target_bound = np.sqrt(self.mission_zlevel**2 + length**2 / 2.0)
         self.weight_table = [(0,2,2),               ## w_repulsion, w_target, w_formation
                              (3,2,0),               ## not in target bound
                              (3,1,2),]              ## in target bound
@@ -151,17 +151,6 @@ class DroneManager(Node):
             return
         else:
             self.traj_setpoint_publisher.publish(self.direction)
-
-    #### Mission Progress ####
-    def timer_mission_callback(self):
-        if len(self.takeoff_offset_dic) != 4:
-            self.calculate_takeoff_offset()
-            return
-        self.update_uwb_data_list()
-        self.particle_step()
-        self.move_agent()
-        if len(self.uwb_data_list) >= 3:
-            self.share_target()
     
     def timer_uwb_callback(self):
         uwb_pub_msg = Ranging()
@@ -193,6 +182,17 @@ class DroneManager(Node):
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
 
+    #### Mission Progress ####
+    def timer_mission_callback(self):
+        if len(self.takeoff_offset_dic) != 4:
+            self.calculate_takeoff_offset()
+            return
+        self.update_uwb_data_list()
+        self.particle_step()
+        self.move_agent()
+        if len(self.uwb_data_list) >= 3:
+            self.share_target()
+
     ## Sub callback ##
     def monitoring_callback(self, msg):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
         self.monitoring_msg = msg
@@ -208,7 +208,6 @@ class DroneManager(Node):
                 point.position[0],
                 point.position[1],
                 point.position[2],
-                point.jerk[0]
             ])
             self.mission_zlevel = - point.position[2]
     
@@ -258,14 +257,6 @@ class DroneManager(Node):
 
     def update_uwb_data_list(self):
         self.uwb_data_list.clear()
-        # for i in self.system_id_list:
-        #     if self.agent_uwb_range_dic[f'{i}'].range / 1000 <= self.uwb_threshold and self.agent_uwb_range_dic[f'{i}'].range != -1:
-        #         self.uwb_data_list.append([
-        #             [self.agent_uwb_range_dic[f'{i}'].anchor_pose.position.x + self.takeoff_offset_dic[f'{i}'][0], 
-        #              self.agent_uwb_range_dic[f'{i}'].anchor_pose.position.y + self.takeoff_offset_dic[f'{i}'][1]],
-        #             self.agent_uwb_range_dic[f'{i}'].range / 1000,
-        #             self.agent_uwb_range_dic[f'{i}'].range / 1000 * 0.03,
-        #             ])
         for key, value in self.agent_uwb_range_dic.items():
             if value.range / 1000 <= self.uwb_threshold and value.range != -1:
                 self.uwb_data_list.append([
@@ -279,33 +270,28 @@ class DroneManager(Node):
     def move_agent(self):
         if not self.have_target:
             return
-        agents_pos = []
-        agents_pos_2d = []
+        agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
-            agent_pos = [
+            idx = int(key)-1 
+            agents_pos[idx] = [
                 value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
-                - value.anchor_pose.position.z
-                ]
-            agents_pos.append(agent_pos)
-        # self.get_logger().info(f'agents_pos : {agents_pos}')
+                value.anchor_pose.position.z
+            ]
         grad_formation = self.f_formation.compute(agents_pos)[self.system_id-1]
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
         grad_target = self.f_target.compute(
             current_pos=[
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
-                - self.monitoring_msg.pos_z,
+                self.monitoring_msg.pos_z,
                 ],
             target=[
                 self.target[0],
                 self.target[1],
-                self.mission_zlevel,
+                - self.mission_zlevel,
                 ]
             )
-        # self.get_logger().info(f"grad_repulsion:{grad_repulsion}")
-        # self.get_logger().info(f'current_pos : {[self.monitoring_msg.pos_x,self.monitoring_msg.pos_y,- self.monitoring_msg.pos_z,]}')
-        # self.get_logger().info(f'22 target : {[self.target[0],self.target[1],self.mission_zlevel,]}')
         w_repulsion, w_target, w_formation = self.compute_weight()
         
         mag_form    = np.linalg.norm(w_formation * grad_formation)
@@ -318,12 +304,9 @@ class DroneManager(Node):
         }
         dominant = max(mags, key=mags.get)
         dominant_value = mags[dominant]
-        # self.get_logger().info(f"Dominant force: {dominant} (|F|={dominant_value:.3f})")
-        # self.get_logger().info(f"w_repulsion, w_target, w_formation : {w_repulsion, w_target, w_formation}")
-        
         total_grad = (
             - w_formation * grad_formation
-            - w_repulsion * grad_repulsion
+            + w_repulsion * grad_repulsion
             - w_target    * grad_target
         )
         total_grad = np.nan_to_num(total_grad)
@@ -334,24 +317,14 @@ class DroneManager(Node):
         current_pos=np.array([
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
-                - self.monitoring_msg.pos_z,
+                self.monitoring_msg.pos_z,
                 ])
         dt = 0.04
         next_pos = current_pos + dir_safe * speed_safe * dt
-        next_pos[2] = max(next_pos[2], 0.1)
-        if self.system_id == 4:
-            self.get_logger().info(f'next_pos: {next_pos}')
-        # self.get_logger().info(f'dir_safe: {dir_safe}')
-        # self.get_logger().info(f'speed_safe: {speed_safe}')
+        next_pos[2] = min(next_pos[2], -0.1)
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
-        # self.get_logger().info(f'total_grad: {total_grad}')
-        # self.get_logger().info(f'result_direc: {result_direc}')
-        # self.get_logger().info(f'vx, vy, vz : {vx, vy, vz}')
-        # self.get_logger().info(f'speed: {speed}')
-        # direction.velocity = [vx, vy, -vz]
-        setpoint.position = [float(next_pos[0]), float(next_pos[1]), -float(next_pos[2])]
-        # setpoint.position = [float(next_pos[0]), float(next_pos[1]), -3.0]
+        setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
         direction = TrajectorySetpointMsg()
         direction.velocity = [speed_safe * dir_safe[0], speed_safe * dir_safe[1], speed_safe * dir_safe[2]]
         # self.total_gradient_publisher.publish(direction)
