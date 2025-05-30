@@ -1,10 +1,10 @@
 import numpy as np
 
 class TargetForce:
-    def __init__(self, target_position, k_mission=1.0):
+    def __init__(self, target_position, k_target=1.0):
         # target_position: (x,y,z)
         self.X_tar = np.array(target_position, dtype=float)
-        self.k = k_mission
+        self.k = k_target
 
     def compute(self, current_pos, target):
         diff = np.array(current_pos) - np.array(target)         # shape (3,)
