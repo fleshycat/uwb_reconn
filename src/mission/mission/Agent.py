@@ -44,7 +44,7 @@ class Agent(Node):
                                         qos_profile_sensor_data
                                         )
         
-        self.uwb_topic_prefix = f"/uwb/anchor_{self.system_id}/ranging"
+        self.uwb_topic_prefix = f"drone{self.system_id}/uwb/ranging"
         
         self.ranging_msg = Ranging()
         self.uwb_data_subscriber = self.create_subscription(

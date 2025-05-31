@@ -31,7 +31,7 @@ SOFTWARE.
 #include <boost/bind.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "uwb_msgs/msg/ranging.hpp"
-#include "uwb_msgs/msg/ranging_list.hpp"
+#include "uwb_msgs/msg/ranging_diff.hpp"
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include "visualization_msgs/msg/marker_array.hpp"
@@ -739,8 +739,8 @@ namespace gazebo
 
             this->lastUpdateTime = common::Time(0.0);
 
-            std::string topic_prefix_uwb = "/uwb/anchor_" + std::to_string(this->anchorId);
-            std::string topicRanging = topic_prefix_uwb + "/ranging";
+            std::string topic_prefix_uwb = "drone" + std::to_string(this->anchorId);
+            std::string topicRanging = topic_prefix_uwb + "/uwb/ranging";
 
             RCLCPP_INFO(node_->get_logger(), "UWB Plugin Ranging Publishing in %s", topicRanging.c_str());
 
@@ -749,7 +749,7 @@ namespace gazebo
             stringStream << "/gtec/toa/anchors" << this->anchorId;*/
             std::string topicAnchor = topic_prefix_uwb + "/marker";
 
-            this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::Ranging>(topicRanging, rclcpp::SensorDataQoS());
+            this->uwbRangingPub = node_->create_publisher<uwb_msgs::msg::RangingDiff>(topicRanging, rclcpp::SensorDataQoS());
             this->uwbAnchorMarkerPub = node_->create_publisher<visualization_msgs::msg::Marker>(topicAnchor, 10);
 
             // visualize the uwb rays
@@ -855,17 +855,17 @@ namespace gazebo
                 }
                 
                 // Create uwb_msg
-                uwb_msgs::msg::Ranging rangingMsg;
-                rangingMsg.header.frame_id = "map";
-                rangingMsg.header.stamp = node_->get_clock()->now();
+                uwb_msgs::msg::RangingDiff rangingMsg;
+                // rangingMsg.header.frame_id = "map";
+                // rangingMsg.header.stamp = node_->get_clock()->now();
                 rangingMsg.anchor_id = this->anchorId;
-                rangingMsg.anchor_pose.position.x = anchorPose.Pos().X();
-                rangingMsg.anchor_pose.position.y = anchorPose.Pos().Y();
-                rangingMsg.anchor_pose.position.z = anchorPose.Pos().Z();
-                rangingMsg.anchor_pose.orientation.x = this->REF_NED_N; //TODO -> anchorPose.Rot().X();
-                rangingMsg.anchor_pose.orientation.y = this->REF_NED_E; //TODO -> anchorPose.Rot().Y();
-                rangingMsg.anchor_pose.orientation.z = anchorPose.Rot().Z();
-                rangingMsg.anchor_pose.orientation.w = anchorPose.Rot().W();
+                // rangingMsg.anchor_pose.position.x = anchorPose.Pos().X();
+                // rangingMsg.anchor_pose.position.y = anchorPose.Pos().Y();
+                // rangingMsg.anchor_pose.position.z = anchorPose.Pos().Z();
+                // rangingMsg.anchor_pose.orientation.x = this->REF_NED_N; //TODO -> anchorPose.Rot().X();
+                // rangingMsg.anchor_pose.orientation.y = this->REF_NED_E; //TODO -> anchorPose.Rot().Y();
+                // rangingMsg.anchor_pose.orientation.z = anchorPose.Rot().Z();
+                // rangingMsg.anchor_pose.orientation.w = anchorPose.Rot().W();
                 rangingMsg.los_type = rangingMsg.LOS_TYPE_NLOS;
 
                 // visualization marker for display anchor in Rviz
@@ -1136,7 +1136,6 @@ namespace gazebo
 
                         if (losType != NLOS)
                         {
-
                             int indexScenario = 0;
                             if (losType == NLOS_S)
                             {
@@ -1173,8 +1172,20 @@ namespace gazebo
                                 losType = NLOS;
                             }
 
-                            rangingMsg.range = rangingValue;
-                            rangingMsg.rss = powerValue;
+                            if(rangingValue > 10000.0){
+                                rangingMsg.range = -1;
+                                rangingMsg.rss = -1;
+                            } 
+                            else {
+                                rangingMsg.range = rangingValue;
+                                rangingMsg.rss = powerValue;
+                            }
+                        }
+
+                        if (losType == NLOS)
+                        {
+                            rangingMsg.range = -1;
+                            rangingMsg.rss = -1;
                         }
 
                         anchor_marker.header.frame_id = "map";
@@ -1219,14 +1230,14 @@ namespace gazebo
                             anchor_marker.color.b = 0.0;
                         }
 
-                        rangingMsg.tag_id = tag_id;
+                        // rangingMsg.tag_id = tag_id;
                         rangingMsg.seq = this->sequence;
                         rangingMsg.error_estimation = 0.00393973;
                         rangingMsg.los_type = losType;
                     }
                 }
                 this->uwbRangingPub->publish(rangingMsg);
-                this->uwbAnchorMarkerPub->publish(anchor_marker);
+                // this->uwbAnchorMarkerPub->publish(anchor_marker);
                 this->sequence++;
             }
         }
@@ -1286,7 +1297,7 @@ namespace gazebo
         std::string tagPrefix;
         std::string tagLinkName;
         std::string tagCollisionName;
-        rclcpp::Publisher<uwb_msgs::msg::Ranging>::SharedPtr uwbRangingPub;
+        rclcpp::Publisher<uwb_msgs::msg::RangingDiff>::SharedPtr uwbRangingPub;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr uwbAnchorMarkerPub;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr firstRayPub;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr secondRayPub;

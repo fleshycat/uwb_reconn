@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'mission'
+package_name = 'drone_manager'
 
 setup(
     name=package_name,
@@ -20,14 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'start_mission = mission.start_mission:main',
-            'start_mission_hover = mission.start_mission_hover:main',
-            'start_mission_corner = mission.start_mission_corner:main',
-            'start_mission_straight = mission.start_mission_straight:main',
-            'start_mission_circle = mission.start_mission_circle:main',
-            'start_mission_uwb_straight = mission.start_mission_uwb_straight:main',
-            'uwb_reconnaissance = mission.uwb_reconnaissance:main',
-            'ocm_publisher = mission.ocm_publisher:main',
+            'drone_manager = drone_manager.drone_manager:main',
         ],
     },
 )

@@ -4,7 +4,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
-from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, GlobalPath as GlobalPathMsg
 
 from geometry_msgs.msg import Point
 from std_msgs.msg import Empty, UInt8
@@ -45,13 +45,15 @@ class StartMission(Node):
         self.get_logger().info(f"Configure DroneManager {self.system_id_}")
         
         self.topic_prefix_fmu_ = f"drone{self.system_id_}/fmu/"
+        self.topic_prefix_manager = f"drone{self.system_id_}/manager/"
         
         self.monitoring_subscriber_ = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
         self.monitoring_msg_ = Monitoring()
         
         self.traj_setpoint_publisher_ = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu_}in/trajectory_setpoint', qos_profile_sensor_data)
         self.vehicle_command_publisher_ = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu_}in/vehicle_command', qos_profile_sensor_data)
-        
+        self.global_path_publisher = self.create_publisher(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', 10)
+
         timer_period_monitoring = 0.5  # seconds
         self.timer_monitoring_ = self.create_timer(timer_period_monitoring, self.in_progress_callback)
         
@@ -79,7 +81,7 @@ class StartMission(Node):
     def in_progress_callback(self):
         if not self.monitoring_msg_._pos_x:
             return
-        # print("Current Progress :", self.currentProgressStatus)
+        # self.get_logger().info(f"currentProgressStatus :{self.currentProgressStatus}")
         if self.currentProgressStatus == ProgressStatus.DISARM:
             self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
             self.disarmPos[0]=self.POSX()
@@ -110,16 +112,21 @@ class StartMission(Node):
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-            setpoint=[self.disarmPos[0], self.disarmPos[1], -1.5]
+            setpoint=[self.disarmPos[0], self.disarmPos[1], -3.0]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 self.setpoint(setpoint)
             else:
-                if self.mission_time_count < 60:
-                    self.mission_time_count += 1
-                else:
-                    self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 6)
-                    self.disarmPos=[self.POSX(), self.POSY()]        
+                self.currentProgressStatus=ProgressStatus.MISSION1
+                self.disarmPos=[self.POSX(), self.POSY()]        
+        
+        if self.currentProgressStatus == ProgressStatus.MISSION1:
+            setpoint = TrajectorySetpointMsg()
+            setpoint.position = [self.disarmPos[0] + 30, self.disarmPos[1] , -3.0]
+            global_path = GlobalPathMsg()
+            global_path.waypoints.append(setpoint)
+            self.global_path_publisher.publish(global_path)
+            self.currentProgressStatus=ProgressStatus.Done
         
         if self.currentProgressStatus == ProgressStatus.Done:
             self.destroy_node()

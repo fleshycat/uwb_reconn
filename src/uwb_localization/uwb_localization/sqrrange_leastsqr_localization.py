@@ -20,6 +20,7 @@ from rclpy.qos import qos_profile_sensor_data
 
 import numpy as np
 from scipy.linalg import eigvals
+import math
 
 class LocalizationNode(Node):
     def __init__(self):
@@ -27,11 +28,11 @@ class LocalizationNode(Node):
         self.declare_parameter('system_id_list', [1,2,3,4])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         
-        self.topic_anchor_prefix = "/uwb/anchor_"
-        self.topic_imu_prefix = "/iris/id_"
+        # self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
+        # self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
         
-        self.dictected_anchor_pos = np.zeros((len(self.system_id_list), 3))
-        self.dictedted_anchor_ranging = np.zeros(len(self.system_id_list))
+        self.dictected_anchor_pos = []
+        self.dictedted_anchor_ranging = []
         
         self.TagPose_pub = self.create_publisher(PoseStamped, 'tag', qos_profile_sensor_data)
         self.TagPoseLLH_pub = self.create_publisher(Pose2D, 'tagLLH', qos_profile_sensor_data)
@@ -40,49 +41,91 @@ class LocalizationNode(Node):
             Subscriber(
                 self, 
                 Ranging, 
-                f'{self.topic_anchor_prefix}{sys_id}/ranging',
+                f'drone{sys_id}/manager/out/ranging',
                 qos_profile=qos_profile_sensor_data,
                 ) 
             for sys_id in self.system_id_list
             ]
 
-        self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
-        self.REF_drone_monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
+        # self.topic_prefix_fmu_ = f"drone{self.system_id_list[0]}/fmu/"
+        # self.REF_drone_monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu_}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)
         self.monitoring_msg = Monitoring()
         
-        self.REF_position = []
-        self.REF_position_flag = False
+        self.takeoff_offset = []
+        self.takeoff_offset_flag = True
+        self.ref_LLH = []
         
         self.ats = ApproximateTimeSynchronizer(
             self.uwb_topic_subscribers,
             queue_size=10,
             slop=0.1,
             )
-        
         self.ats.registerCallback(self.uwb_data_callback)
             
         # Initialize the transform broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
 
     def uwb_data_callback(self, *msgs): 
+        # if self.takeoff_offset_flag:
+        #     for i, msg in enumerate(msgs):
+        #         if msg.anchor_pose.orientation.x == 0.0:
+        #             return
+        #         if i==0:
+        #             ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+        #         LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+        #         self.get_logger().info(f"ref_LLH : {ref_LLH}")
+        #         self.get_logger().info(f"LLH : {LLH}")
+                
+        #         if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+        #             self.get_logger().warn("LLH ref_LLH NaN.")
+        #             return
+                
+        #         NED = LLH2NED(LLH, ref_LLH)
+        #         self.takeoff_offset.append(NED)
+        #     print("self.takeoff_offset:", self.takeoff_offset, sep="\n")
+        #     self.takeoff_offset_flag = False
+        #     return
+        self.takeoff_offset.clear()
         for i, msg in enumerate(msgs):
-            if i==0 and not self.REF_position_flag :
-                self.REF_position = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y]
-                self.REF_position_flag = True
-            anchorID = msg.anchor_id
-            anchor_pose = np.array([msg.anchor_pose.position.x, msg.anchor_pose.position.y, msg.anchor_pose.position.z])
-            self.dictected_anchor_pos[anchorID - 1] = anchor_pose
-            self.dictedted_anchor_ranging[anchorID - 1] = msg.range / 1000
+            if msg.anchor_pose.orientation.x == 0.0:
+                return
+            if i==0:
+                ref_LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+                self.monitoring_msg.ref_lat = msg.anchor_pose.orientation.x
+                self.monitoring_msg.ref_lon = msg.anchor_pose.orientation.y
+                self.monitoring_msg.ref_alt = msg.anchor_pose.orientation.z
+            LLH = [msg.anchor_pose.orientation.x, msg.anchor_pose.orientation.y, msg.anchor_pose.orientation.z]
+            
+            if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+                self.get_logger().warn("LLH ref_LLH NaN.")
+                return
+            
+            NED = LLH2NED(LLH, ref_LLH)
+            self.takeoff_offset.append(NED)
         
+        self.dictected_anchor_pos.clear()
+        self.dictedted_anchor_ranging.clear()
+        for i, msg in enumerate(msgs):    
+            if msg.range != -1:
+                anchor_pose = [msg.anchor_pose.position.x + self.takeoff_offset[i][0],
+                               msg.anchor_pose.position.y + self.takeoff_offset[i][1], 
+                               msg.anchor_pose.position.z + self.takeoff_offset[i][2]]
+                self.dictected_anchor_pos.append(anchor_pose)
+                self.dictedted_anchor_ranging.append([msg.range / 1000])
+                # self.dictected_anchor_pos.append(anchor_pose)
+                # self.dictedted_anchor_ranging.append(msg.range / 1000)
+        
+
         robot_pos=[]
+        
         if len(self.dictected_anchor_pos)!=0:
-            robot_pos = self.position_calculation(self.dictected_anchor_pos, self.dictedted_anchor_ranging)
+            robot_pos = self.position_calculation(np.array(self.dictected_anchor_pos), np.array(self.dictedted_anchor_ranging))
         
         if robot_pos is not None and len(robot_pos) > 0:
-            self.publish_data(robot_pos[0], robot_pos[1],robot_pos[2])
+            self.publish_data(robot_pos[0], robot_pos[1], robot_pos[2])
     
-    def monitoring_callback(self, msg):
-        self.monitoring_msg = msg
+    # def monitoring_callback(self, msg):
+    #     self.monitoring_msg = msg
     
     def position_calculation(self, anchor_pos, dist):
         if len(anchor_pos) == 0:
@@ -128,7 +171,7 @@ class LocalizationNode(Node):
                 x=-x
             return x 
         
-    def publish_data(self, pose_x, pose_y, pose_z):
+    def publish_data(self, pose_x, pose_y, pose_z):        
         tag_pos = PoseStamped()
         tag_pos_LLH = Pose2D()
         
@@ -146,7 +189,7 @@ class LocalizationNode(Node):
         
         ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
         
-        tag_pos_NED = [float(pose_y) - self.REF_position[1], float(pose_x) - self.REF_position[0], -float(pose_z)]
+        tag_pos_NED = [float(pose_x), float(pose_y), float(pose_z)]
         tag_pos_LLH_tmp = NED2LLH(NED=tag_pos_NED, ref_LLH=ref_LLH)
         
         # self.get_logger().info(f"tag_pos : {float(pose_x)}, {float(pose_y)}")
@@ -161,8 +204,7 @@ class LocalizationNode(Node):
         tag_pos_LLH.theta = 0.0
         self.TagPose_pub.publish(tag_pos)
         self.TagPoseLLH_pub.publish(tag_pos_LLH)
-
-
+            
 # WGS-84 
 a = 6378137.0 
 f = 1.0 / 298.257223563  
