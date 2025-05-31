@@ -112,7 +112,7 @@ class StartMission(Node):
                 self.currentProgressStatus=ProgressStatus(self.currentProgressStatus.value + 1)
         
         if self.currentProgressStatus == ProgressStatus.TAKEOFF:
-            setpoint=[self.disarmPos[0], self.disarmPos[1], -3.0]
+            setpoint=[self.disarmPos[0], self.disarmPos[1], -5.0]
             success, distance = self.isOnSetpoint(setpoint)
             if not success:
                 self.setpoint(setpoint)
@@ -122,7 +122,7 @@ class StartMission(Node):
         
         if self.currentProgressStatus == ProgressStatus.MISSION1:
             setpoint = TrajectorySetpointMsg()
-            setpoint.position = [self.disarmPos[0] + 30, self.disarmPos[1] , -3.0]
+            setpoint.position = [self.disarmPos[0] + 30, self.disarmPos[1] , -5.0]
             global_path = GlobalPathMsg()
             global_path.waypoints.append(setpoint)
             self.global_path_publisher.publish(global_path)
@@ -144,7 +144,7 @@ class StartMission(Node):
     
     def isOnSetpoint(self, targetPOS):
         distance = self.distance(self.POS(), targetPOS)
-        return (distance < 0.1), distance
+        return (distance < 0.3), distance
     
     def POSX(self):
         return self.monitoring_msg_.pos_x

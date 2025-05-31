@@ -27,6 +27,29 @@
             "problemMatcher": []
         },
         {
+            "label": "Launch typhoon with drone manager",
+            "type": "shell",
+            "command": "ros2",
+            "args": [
+                "launch",
+                "uwb_sim",
+                "typhoon_gazebo_world_run.launch.py",
+                "world_type:=empty",
+                "num_drone:=4"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Launch iris with empty world",
             "type": "shell",
             "command": "ros2",

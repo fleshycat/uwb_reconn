@@ -47,7 +47,7 @@ class DroneManager(Node):
         self.takeoff_offset_dic = {}
         self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         self.agent_target_dic = {}
-        self.mission_zlevel = 3.0
+        self.mission_zlevel = 5.0
         self.direction = TrajectorySetpointMsg()
 
         ## Publisher ##
@@ -411,7 +411,8 @@ class DroneManager(Node):
                 NED = LLH2NED(LLH, ref_LLH)
                 self.takeoff_offset_dic[f'{key}'] = NED
             except Exception as e:
-                self.get_logger().warn(f"Key {key} skipped: {e}")
+                # self.get_logger().warn(f"Key {key} skipped: {e}")
+                pass
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
