@@ -47,7 +47,7 @@ class DroneManager(Node):
         self.takeoff_offset_dic = {}
         self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         self.agent_target_dic = {}
-        self.mission_zlevel = 0.0
+        self.mission_zlevel = 3.0
         self.direction = TrajectorySetpointMsg()
 
         ## Publisher ##
@@ -77,11 +77,15 @@ class DroneManager(Node):
         self.ocm_msg = OffboardControlMode()
         
         ## Potential Field ##
-        desired_formation = [(0,0,0), (6,0,0), (6,6,0), (0,6,0)]
+        desired_formation = [(0,0,-self.mission_zlevel), 
+                             (6,0,-self.mission_zlevel), 
+                             (6,6,-self.mission_zlevel), 
+                             (0,6,-self.mission_zlevel)]
         self.f_formation = FormationForce(desired_positions = desired_formation,
-                                        k_scale=5.0,
-                                        k_pair=5.0,
-                                        k_shape=8.0)
+                                        k_scale=1.0,
+                                        k_pair=1.0,
+                                        k_shape=2.0,
+                                        k_z=2.0)
         self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
                                         c_rep=3.0,
                                         cutoff=2.0,
@@ -89,9 +93,9 @@ class DroneManager(Node):
         self.f_target = TargetForce([0,0], k_target=1.0)
         length = np.linalg.norm(np.array(desired_formation[0]) - np.array(desired_formation[1]))
         self.target_bound = np.sqrt(self.mission_zlevel**2 + length**2 / 2.0)
-        self.weight_table = [(0,2,2),               ## w_repulsion, w_target, w_formation
-                             (3,2,0),               ## not in target bound
-                             (3,1,2),]              ## in target bound
+        self.weight_table = [(0,1,1),               ## w_repulsion, w_target, w_formation
+                             (4,1,0),               ## not in target bound
+                             (4,1,2),]              ## in target bound
         
         ## Particle Filter ##
         self.num_particles = 1000
@@ -293,17 +297,6 @@ class DroneManager(Node):
                 ]
             )
         w_repulsion, w_target, w_formation = self.compute_weight()
-        
-        mag_form    = np.linalg.norm(w_formation * grad_formation)
-        mag_rep     = np.linalg.norm(w_repulsion * grad_repulsion)
-        mag_targ    = np.linalg.norm(w_target    * grad_target)
-        mags = {
-            'repulsion': mag_rep,
-            'formation': mag_form,
-            'target':    mag_targ,
-        }
-        dominant = max(mags, key=mags.get)
-        dominant_value = mags[dominant]
         total_grad = (
             - w_formation * grad_formation
             + w_repulsion * grad_repulsion
@@ -326,8 +319,8 @@ class DroneManager(Node):
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
         direction = TrajectorySetpointMsg()
-        direction.velocity = [speed_safe * dir_safe[0], speed_safe * dir_safe[1], speed_safe * dir_safe[2]]
-        # self.total_gradient_publisher.publish(direction)
+        direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
+        self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
 
     def compute_weight(self):
@@ -450,7 +443,6 @@ def NED2LLH(NED, ref_LLH):
     dlat = NED[0] / N_ref
     dlon = NED[1] / (N_ref * cos_lat_ref)
 
-    # 결과 LLH 계산
     lat = lat_ref + dlat
     lon = lon_ref + dlon
     h = ref_LLH[2] + NED[2]

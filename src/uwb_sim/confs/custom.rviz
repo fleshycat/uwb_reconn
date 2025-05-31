@@ -240,7 +240,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        gradient: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -301,9 +301,9 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.1875373125076294
-        Y: 11.42427921295166
-        Z: 11.368672370910645
+        X: -1.5572043657302856
+        Y: 9.809425354003906
+        Z: 4.826944351196289
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

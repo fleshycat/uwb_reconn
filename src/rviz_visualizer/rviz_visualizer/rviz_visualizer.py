@@ -237,7 +237,7 @@ class rivzVisualizer(Node):
             v = np.array([value.velocity[1], value.velocity[0], -value.velocity[2]])
             d = v / np.linalg.norm(v) 
 
-            length = 3.0
+            length = 1.5
             end = Point()
             end.x = start.x + d[0] * length
             end.y = start.y + d[1] * length
@@ -318,7 +318,6 @@ def NED2LLH(NED, ref_LLH):
     dlat = NED[0] / N_ref
     dlon = NED[1] / (N_ref * cos_lat_ref)
 
-    # 결과 LLH 계산
     lat = lat_ref + dlat
     lon = lon_ref + dlon
     h = ref_LLH[2] + NED[2]
