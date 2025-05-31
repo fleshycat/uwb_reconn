@@ -7,19 +7,20 @@ class FormationForce:
       - scale penalty
       - distance penalties for all point pairs (edges + diagonals)
     """
-    def __init__(self, desired_positions,
-                 k_scale=0.2, k_pair=1.0, k_shape=1.0):
+    def __init__(self, desired_positions,k_scale=0.2, k_pair=1.0, k_shape=1.0, k_z=5.0):
         self.X_des = np.array(desired_positions, dtype=float)
         self.n = self.X_des.shape[0]
         # weights
         self.k_scale = k_scale
         self.k_pair  = k_pair
         self.k_shape = k_shape
+        self.k_z = k_z
         # build complete-graph Laplacian
         L = -np.ones((self.n, self.n))
         np.fill_diagonal(L, self.n - 1)
         self.L = L
-
+        self.Z_des = self.X_des[:, 2]
+        
         # desired raw signature and trace
         S0_des = self.X_des.T @ L @ self.X_des # shape (3,3)
         tr_des = np.trace(S0_des)
@@ -56,9 +57,13 @@ class FormationForce:
                 force = 2 * err * (diff / dist)
                 grad_pair[i] += force
                 grad_pair[j] -= force
-                
+        grad_z = np.zeros_like(X)
+        z_err = X[:, 2] - self.Z_des
+        grad_z[:, 2] = 2.0 * self.k_z * z_err
+
         # total gradient
         grad = (self.k_shape * grad_shape
                 + self.k_scale * grad_scale
-                + self.k_pair  * grad_pair)
+                + self.k_pair  * grad_pair
+                + grad_z) 
         return np.nan_to_num(grad)
