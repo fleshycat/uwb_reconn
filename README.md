@@ -1,11 +1,11 @@
-# uwb_simulation
+# uwb_reconn
 
 ## Architecture
 
 ## How to Install
 
 ```
-$ git clone https://github.com/fleshycat/uwb_reconn.git
+$ git clone https://github.com/fleshycat/uwb_reconn.git --recursive -b advanced_drone_system
 $ cd uwb_reconn
 $ colcon build
 ```
@@ -13,13 +13,8 @@ $ colcon build
 ## How to Run
 
 ```
-# Running a Gazebo World with Anchors and Tags
-$ ros2 launch uwb_sim robot_in_gazebo_world_run.launch.py
-```
-
-```
-# Running UWB localization Node
-$ ros2 run uwb_localization sqrrange_leastsqr_localization.py
+# Running UWB Reconn Launch
+$ ros2 launch uwb_sim typhoon_gazebo_world_run.launch.py 
 ```
 
 ## Shortcut in Vscode
@@ -27,5 +22,5 @@ $ ros2 run uwb_localization sqrrange_leastsqr_localization.py
 ```
 Command Palette(Ctrl+Shift+P)
 Tasks:Run Task(Set your desired shortcut keys)
-Select the Model and the World
+Select the Model and the World (Launch typhoon with drone manager)
 ```
