@@ -2,7 +2,3 @@
 	path = src/nlink_parser_ros2
 	url = https://github.com/Porofly/nlink_parser_ros2.git
 	branch = uwb_recon
-[submodule "src/J-Fi"]
-	path = src/J-Fi
-	url = https://github.com/SUV-Lab/J-Fi.git
-	branch = uwb_recon
