@@ -23,6 +23,141 @@ from enum import Enum
 import math
 import numpy as np
 
+## J-Fi ##
+import struct
+import serial
+import threading
+
+class ParseState:
+    WAIT_SYNC1 = 0
+    WAIT_SYNC2 = 1
+    WAIT_LENGTH = 2
+    WAIT_HEADER = 3
+    WAIT_DATA = 4
+    WAIT_CHECKSUM_1 = 5
+    WAIT_CHECKSUM_2 = 6
+
+class JFiProtocol:
+    HEADER_SIZE = 5  # JFiProtocol Header (SYNC1, SYNC2, length, seq, sid)
+    CHECKSUM_SIZE = 2  # 16-bit checksum (Little Endian)
+
+    def __init__(self):
+        # Parser state
+        self.state = ParseState.WAIT_SYNC1
+        self.buffer = bytearray()
+        self.checksum = 0
+        self.payload_length = None
+
+    @staticmethod
+    def create_packet(payload, seq=1, sid=1):
+        """
+        Creates a JFiProtocol packet with a header, payload, and checksum.
+        
+        :param payload: Raw binary data (bytes)
+        :param seq: Sequence number
+        :param sid: Source ID
+        :return: Complete packet as bytes
+        """
+        # SYNC bytes
+        sync1 = 0xAA
+        sync2 = 0x55
+
+        # Compute total length (Header 5 bytes + Payload + Checksum 2 bytes)
+        length = JFiProtocol.HEADER_SIZE + len(payload) + JFiProtocol.CHECKSUM_SIZE
+
+        # Pack header (5 bytes): SYNC1, SYNC2, LENGTH, SEQ, SID
+        header = struct.pack('BBBBB',
+            sync1,      # 0: SYNC1 (0xAA)
+            sync2,      # 1: SYNC2 (0x55)
+            length,     # 2: LENGTH
+            seq,        # 3: SEQ
+            sid         # 4: SID
+        )
+
+        # Combine header and payload
+        packet = header + payload
+
+        # Compute 16-bit XOR checksum
+        checksum = JFiProtocol.compute_checksum(packet)
+
+        # Append checksum (2 bytes, Little Endian)
+        packet += struct.pack('<H', checksum)
+
+        return packet
+
+    @staticmethod
+    def compute_checksum(data):
+        """
+        Computes a 16-bit XOR checksum over the given data.
+
+        :param data: Byte data for checksum computation
+        :return: 16-bit checksum
+        """
+        checksum = 0
+        for byte in data:
+            checksum ^= byte
+        return checksum
+
+    def reset_parser(self):
+        self.state = ParseState.WAIT_SYNC1
+        self.buffer = bytearray()
+        self.checksum = 0
+
+    def validate_checksum(self):
+        # Compute checksum over all bytes except last two (which are the received checksum)
+        if len(self.buffer) < JFiProtocol.CHECKSUM_SIZE:
+            return False
+        computed = 0
+        for byte in self.buffer[:-JFiProtocol.CHECKSUM_SIZE]:
+            computed ^= byte
+        return computed == self.checksum
+    
+    def parse(self, byte):
+        complete_packet = None
+
+        if self.state == ParseState.WAIT_SYNC1:
+            if byte == 0xAA:
+                self.reset_parser()
+                self.buffer.append(byte)
+                self.state = ParseState.WAIT_SYNC2
+
+        elif self.state == ParseState.WAIT_SYNC2:
+            if byte == 0x55:
+                self.buffer.append(byte)
+                self.state = ParseState.WAIT_LENGTH
+            else:
+                self.reset_parser()
+
+        elif self.state == ParseState.WAIT_LENGTH:
+            self.buffer.append(byte)
+            self.payload_length = byte
+            self.state = ParseState.WAIT_HEADER
+
+        elif self.state == ParseState.WAIT_HEADER:
+            self.buffer.append(byte)
+            if len(self.buffer) == JFiProtocol.HEADER_SIZE:
+                self.state = ParseState.WAIT_DATA
+
+        elif self.state == ParseState.WAIT_DATA:
+            self.buffer.append(byte)
+            data_length = self.payload_length - JFiProtocol.HEADER_SIZE - JFiProtocol.CHECKSUM_SIZE
+            if len(self.buffer) == JFiProtocol.HEADER_SIZE + data_length:
+                self.state = ParseState.WAIT_CHECKSUM_1
+
+        elif self.state == ParseState.WAIT_CHECKSUM_1:
+            self.buffer.append(byte)
+            self.checksum = byte
+            self.state = ParseState.WAIT_CHECKSUM_2
+
+        elif self.state == ParseState.WAIT_CHECKSUM_2:
+            self.buffer.append(byte)
+            self.checksum |= (byte << 8)
+            if self.validate_checksum():
+                complete_packet = self.buffer[:]
+            self.reset_parser()
+
+        return complete_packet
+
 class Mode(Enum):
     QHAC = 0
     SEARCH = 1
@@ -37,6 +172,30 @@ class DroneManager(Node):
         self.declare_parameter('system_id_list', [1,2,3,4])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         
+        ## J-Fi Configuration ##
+        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        serial_port_name = self.get_parameter('serial_port').value
+        self.declare_parameter('baud_rate', 115200)
+        baudrate = self.get_parameter('baud_rate').value
+        self.jfi_seq = 0
+
+        # Configure the serial port
+        try:
+            self.serial_port = serial.Serial(serial_port_name, baudrate=baudrate, timeout=1)
+            self.get_logger().info(f"Opened serial port: {serial_port_name}")
+        except serial.SerialException as e:
+            self.get_logger().error(f"Failed to open serial port {serial_port_name}: {e}")
+            return
+        
+        # Timer for sending data remains the same
+        # self.send_timer = self.create_timer(0.5, self.send_data)
+
+        self.receive_thread = threading.Thread(target=self.receive_data)
+        self.receive_thread.daemon = True
+        self.receive_thread.start()
+
+        ## J-Fi Configuration ##
+
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"  #"drone1/manager/"
         self.topic_prefix_fmu = f"drone{self.system_id}/fmu/"          #"drone1/fmu/"
         self.topic_prefix_uwb = f"drone{self.system_id}/uwb/ranging"
@@ -127,6 +286,101 @@ class DroneManager(Node):
         
         self.initiate_drone_manager()
     
+    ## J-Fi Methods ##
+    def send_data(self, uwb_pub_msg: Ranging):
+        """
+        인자로 받은 Ranging 메시지를 J-Fi 패킷으로 직렬화하여 시리얼 포트로 송신.
+        페이로드 포맷: '<B I B d d d d d d h H'
+          - B: anchor_id (uint8)
+          - I: range_mm   (uint32)
+          - B: seq_ranging (uint8)
+          - d*3: pos_x, pos_y, pos_z (double*3)
+          - d*3: ori_x, ori_y, ori_z (double*3)
+          - h: rss (int16)
+          - H: error_estimation (uint16)
+        """
+        fmt = '<B I B d d d d d d h H'
+        payload = struct.pack(
+            fmt,
+            uwb_pub_msg.anchor_id,                  # uint8
+            uwb_pub_msg.range,                      # uint32 (mm)
+            uwb_pub_msg.seq,                        # uint8
+            uwb_pub_msg.anchor_pose.position.x,     # double
+            uwb_pub_msg.anchor_pose.position.y,     # double
+            uwb_pub_msg.anchor_pose.position.z,     # double
+            uwb_pub_msg.anchor_pose.orientation.x,  # double
+            uwb_pub_msg.anchor_pose.orientation.y,  # double
+            uwb_pub_msg.anchor_pose.orientation.z,  # double
+            uwb_pub_msg.rss,                        # int16
+            uwb_pub_msg.error_estimation            # uint16
+        )
+
+        # Create a JFiProtocol packet
+        self.jfi_seq = (self.jfi_seq + 1) & 0xFF
+        packet = JFiProtocol.create_packet(payload, seq=self.jfi_seq, sid=self.system_id)
+
+        # Send the packet via serial
+        self.serial_port.write(packet)
+        # Debug logging
+        self.get_logger().debug(
+            f"JFi TX → anchor_id={uwb_pub_msg.anchor_id}, "
+            f"range_mm={uwb_pub_msg.range}, seq(jfi)={self.jfi_seq}"
+        )
+    
+    def receive_data(self):
+        protocol_parser = JFiProtocol()
+        while rclpy.ok():
+            try:
+                if self.serial_port.in_waiting:
+                    data = self.serial_port.read(self.serial_port.in_waiting)
+                    for b in data:
+                        packet = protocol_parser.parse(b)
+                        if packet is not None:
+                            header = packet[:JFiProtocol.HEADER_SIZE]
+                            payload = packet[JFiProtocol.HEADER_SIZE:-JFiProtocol.CHECKSUM_SIZE]
+
+                            # Unpack header (5 bytes)
+                            sync1, sync2, length, seq_jfi, sid = struct.unpack('BBBBB', header)
+
+                            # Unpack payload
+                            anchor_id, \
+                            range, \
+                            seq_ranging, \
+                            posx, posy, posz, \
+                            orix, oriy, oriz, \
+                            rss, \
+                            error_est = struct.unpack('<B I B d d d d d d h H', payload)
+
+                            # Log the received values
+                            self.get_logger().debug(
+                                f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
+                                f"range={range}"
+                            )
+
+                            # Recover Ranging message
+                            uwb_msg = Ranging()
+                            uwb_msg.header.stamp = self.get_clock().now().to_msg()
+                            uwb_msg.header.frame_id = "map"
+                            uwb_msg.anchor_id = anchor_id
+                            uwb_msg.range = range
+                            uwb_msg.seq = seq_ranging
+                            uwb_msg.anchor_pose.position.x = posx
+                            uwb_msg.anchor_pose.position.y = posy
+                            uwb_msg.anchor_pose.position.z = posz
+                            uwb_msg.anchor_pose.orientation.x = orix
+                            uwb_msg.anchor_pose.orientation.y = oriy
+                            uwb_msg.anchor_pose.orientation.z = oriz
+                            uwb_msg.rss = rss
+                            uwb_msg.error_estimation = error_est
+
+                            # Update the agent UWB range dictionary
+                            self.agent_uwb_range_dic[f'{sid}'] = uwb_msg
+
+            except serial.SerialException as e:
+                self.get_logger().error(f"Serial read error: {e}")
+                break
+    ## J-Fi Methods ##
+
     def initiate_drone_manager(self):
         self.change_mode(Mode.QHAC)
         self.agent_uwb_range_dic.clear()
@@ -162,37 +416,57 @@ class DroneManager(Node):
     #         self.traj_setpoint_publisher.publish(self.direction)
     
     def timer_uwb_callback(self):
+        # Create Ranging message
         uwb_pub_msg = Ranging()
         uwb_pub_msg.header.frame_id            = "map"
+
+        # Set the timestamp for the message
         now_timestamp = self.get_clock().now().to_msg().sec
         uwb_pub_msg.header.stamp.sec = self.gcs_timestamp.stamp.sec + ( now_timestamp - self.init_timestamp )
         uwb_pub_msg.header.stamp.nanosec = self.get_clock().now().to_msg().nanosec
-        uwb_pub_msg.anchor_id                  = self.system_id
         
+        # Set anchor ID
+        uwb_pub_msg.anchor_id = self.system_id
+        
+        # Default values
         uwb_pub_msg.range = -1
+        uwb_pub_msg.rss = 0
+        uwb_pub_msg.error_estimation = 0
+
+        # Find the node with ID 0 (Tag)
         for node in self.uwb_sub_msg.nodes:
             if node.id == 0:
-                uwb_pub_msg.range = int(node.dis * 1000)
+                uwb_pub_msg.range = int(node.dis * 1000)    # m → mm
                 uwb_pub_msg.rss = node.rx_rssi
                 uwb_pub_msg.error_estimation = node.fp_rssi
                 break
-        if uwb_pub_msg.range != -1:
-            distance = uwb_pub_msg.range / 1000.0
-            height   = self.monitoring_msg.pos_z
-            square_diff = max(distance**2 - height**2, 0)
-            uwb_pub_msg.range              = int(math.sqrt(square_diff) * 1000)
         
-        uwb_pub_msg.seq                        = self.uwb_sub_msg.system_time % 256
+        # If no node with ID 0 is found, return
+        if uwb_pub_msg.range == -1:
+            return
+        
+        # Height correction
+        distance = uwb_pub_msg.range / 1000.0                       # mm → m
+        height   = self.monitoring_msg.pos_z
+        square_diff = max(distance**2 - height**2, 0)
+        uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
+        
+        # UWB message sequence number
+        uwb_pub_msg.seq     = self.uwb_sub_msg.system_time % 256
         # Drone NED position
         uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
         uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
         uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
-        # Ref (RTK-GPS) 
+        # Drone Ref LLH (RTK-GPS)
         uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
         uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
         
-        self.uwb_ranging_publisher.publish(uwb_pub_msg)
+        # Publish the UWB message
+        self.send_data(uwb_pub_msg)
+        # self.uwb_ranging_publisher.publish(uwb_pub_msg)
+
+        # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f'{self.system_id}'] = uwb_pub_msg
     
     def timer_monitoring_pub_callback(self):
