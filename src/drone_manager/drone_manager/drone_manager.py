@@ -53,18 +53,22 @@ class DroneManager(Node):
 
         ## Publisher ##
         self.ocm_publisher = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu}in/offboard_control_mode', qos_profile_sensor_data)                    #"drone1/fmu/in/offboard_control_mode"
-        self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
-        self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data)
-        # self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
+        # self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         # self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
+        
+        ## J-Fi Sender ##
+        self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
+        self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data) 
 
         ## Subscriber ##
         self.uwb_subscriber = self.create_subscription(LinktrackNodeframe2, f'drone{self.system_id}/nlink_linktrack_nodeframe2', self.uwb_msg_callback, qos_profile_sensor_data)   # From UWB Sensor
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
         self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
+        
+        ## J-Fi Receiver ##
         self.agent_uwb_range_subscribers = [
             self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_uwb_range_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
