@@ -29,17 +29,17 @@ import serial
 import threading
 
 class ParseState:
-    WAIT_SYNC1 = 0
-    WAIT_SYNC2 = 1
-    WAIT_LENGTH = 2
-    WAIT_HEADER = 3
-    WAIT_DATA = 4
+    WAIT_SYNC1      = 0
+    WAIT_SYNC2      = 1
+    WAIT_LENGTH     = 2
+    WAIT_HEADER     = 3
+    WAIT_DATA       = 4
     WAIT_CHECKSUM_1 = 5
     WAIT_CHECKSUM_2 = 6
 
 class JFiProtocol:
-    HEADER_SIZE = 5  # JFiProtocol Header (SYNC1, SYNC2, length, seq, sid)
-    CHECKSUM_SIZE = 2  # 16-bit checksum (Little Endian)
+    HEADER_SIZE = 5     # JFiProtocol Header (SYNC1, SYNC2, length, seq, sid)
+    CHECKSUM_SIZE = 2   # 16-bit checksum (Little Endian)
 
     def __init__(self):
         # Parser state
@@ -49,13 +49,13 @@ class JFiProtocol:
         self.payload_length = None
 
     @staticmethod
-    def create_packet(payload, seq=1, sid=1):
+    def create_packet(payload, seq=0, sid=1):
         """
         Creates a JFiProtocol packet with a header, payload, and checksum.
         
         :param payload: Raw binary data (bytes)
         :param seq: Sequence number
-        :param sid: Source ID
+        :param sid: Source System ID
         :return: Complete packet as bytes
         """
         # SYNC bytes
@@ -410,6 +410,12 @@ class DroneManager(Node):
 
                             # Update the agent target dictionary
                             self.agent_target_dic[f'{sid}'] = target_msg
+
+                            # Log the received values
+                            # self.get_logger().info(
+                            #     f"JFi RX ← sid={sid}, "
+                            #     f"target pos : lat={lat}, lon={lon}"
+                            # )
                         
                         else:
                             # Ignore undefined payload length
