@@ -277,7 +277,7 @@ class DroneManager(Node):
         timer_period_global_path = 0.1
         self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
         timer_period_mission = 0.04 # 25hz
-        # self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
+        self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
         timer_period_monitoring = 0.02 # 50hz
         self.timer_monitoring = self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
         
@@ -322,10 +322,10 @@ class DroneManager(Node):
         # Send the packet via serial
         self.serial_port.write(packet)
         # Debug logging
-        self.get_logger().info(
-            f"JFi TX → anchor_id={uwb_pub_msg.anchor_id}, "
-            f"range_mm={uwb_pub_msg.range}, seq(jfi)={self.jfi_seq}"
-        )
+        # self.get_logger().info(
+        #     f"JFi TX → anchor_id={uwb_pub_msg.anchor_id}, "
+        #     f"range_mm={uwb_pub_msg.range}, seq(jfi)={self.jfi_seq}"
+        # )
     
     def receive_data(self):
         protocol_parser = JFiProtocol()
@@ -352,10 +352,10 @@ class DroneManager(Node):
                             error_est = struct.unpack('<B i B d d d d d d f f', payload)
 
                             # Log the received values
-                            self.get_logger().info(
-                                f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
-                                f"range={range}, rss={rss}, error_est={error_est}"
-                            )
+                            # self.get_logger().info(
+                            #     f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
+                            #     f"range={range}, rss={rss}, error_est={error_est}"
+                            # )
 
                             # Recover Ranging message
                             uwb_msg = Ranging()
@@ -469,16 +469,16 @@ class DroneManager(Node):
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
 
-    #### Mission Progress ####
-    # def timer_mission_callback(self):
-    #     if len(self.takeoff_offset_dic) != 4:
-    #         self.calculate_takeoff_offset()
-    #         return
-    #     self.update_uwb_data_list()
-    #     self.particle_step()
-    #     self.move_agent()
-    #     if len(self.uwb_data_list) >= 3:
-    #         self.share_target()
+    ### Mission Progress ####
+    def timer_mission_callback(self):
+        if len(self.takeoff_offset_dic) != 4:
+            self.calculate_takeoff_offset()
+            return
+        self.update_uwb_data_list()
+        self.particle_step()
+        self.move_agent()
+        if len(self.uwb_data_list) >= 3:
+            self.share_target()
 
     ## Sub callback ##
     def monitoring_callback(self, msg):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
@@ -681,20 +681,20 @@ class DroneManager(Node):
         self.get_logger().info(f"DroneManager {self.system_id} : OCM changed : Velocity")
 
     ## Utility ##
-    # def calculate_takeoff_offset(self):
-    #     self.takeoff_offset_dic.clear()
-    #     ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
-    #     for key, value in self.agent_uwb_range_dic.items():
-    #         try:
-    #             if value.anchor_pose.orientation.x == 0.0:
-    #                 raise ValueError("Orientation.x is zero")
-    #             LLH = [value.anchor_pose.orientation.x, value.anchor_pose.orientation.y, value.anchor_pose.orientation.z]
-    #             if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
-    #                 raise ValueError("NaN in coordinates")
-    #             NED = LLH2NED(LLH, ref_LLH)
-    #             self.takeoff_offset_dic[f'{key}'] = NED
-    #         except Exception as e:
-    #             self.get_logger().warn(f"Key {key} skipped: {e}")
+    def calculate_takeoff_offset(self):
+        self.takeoff_offset_dic.clear()
+        ref_LLH = [self.monitoring_msg.ref_lat, self.monitoring_msg.ref_lon, self.monitoring_msg.ref_alt]
+        for key, value in self.agent_uwb_range_dic.items():
+            try:
+                if value.anchor_pose.orientation.x == 0.0:
+                    raise ValueError("Orientation.x is zero")
+                LLH = [value.anchor_pose.orientation.x, value.anchor_pose.orientation.y, value.anchor_pose.orientation.z]
+                if any(math.isnan(val) for val in LLH) or any(math.isnan(val) for val in ref_LLH):
+                    raise ValueError("NaN in coordinates")
+                NED = LLH2NED(LLH, ref_LLH)
+                self.takeoff_offset_dic[f'{key}'] = NED
+            except Exception as e:
+                self.get_logger().warn(f"Key {key} skipped: {e}")
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
