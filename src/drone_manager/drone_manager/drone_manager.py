@@ -296,10 +296,10 @@ class DroneManager(Node):
           - B: seq_ranging (uint8)
           - d*3: pos_x, pos_y, pos_z (double*3)
           - d*3: ori_x, ori_y, ori_z (double*3)
-          - h: rss (int16)
-          - H: error_estimation (uint16)
+          - f: rss (float32)
+          - f: error_estimation (float32)
         """
-        fmt = '<B I B d d d d d d h H'
+        fmt = '<B I B d d d d d d f f'
         payload = struct.pack(
             fmt,
             uwb_pub_msg.anchor_id,                  # uint8
@@ -311,8 +311,8 @@ class DroneManager(Node):
             uwb_pub_msg.anchor_pose.orientation.x,  # double
             uwb_pub_msg.anchor_pose.orientation.y,  # double
             uwb_pub_msg.anchor_pose.orientation.z,  # double
-            uwb_pub_msg.rss,                        # int16
-            uwb_pub_msg.error_estimation            # uint16
+            uwb_pub_msg.rss,                        # float32
+            uwb_pub_msg.error_estimation            # float32
         )
 
         # Create a JFiProtocol packet
@@ -349,12 +349,12 @@ class DroneManager(Node):
                             posx, posy, posz, \
                             orix, oriy, oriz, \
                             rss, \
-                            error_est = struct.unpack('<B I B d d d d d d h H', payload)
+                            error_est = struct.unpack('<B I B d d d d d d f f', payload)
 
                             # Log the received values
                             self.get_logger().debug(
                                 f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
-                                f"range={range}"
+                                f"range={range}, rss={rss}, error_est={error_est}"
                             )
 
                             # Recover Ranging message
@@ -464,7 +464,7 @@ class DroneManager(Node):
         
         # Publish the UWB message
         self.send_data(uwb_pub_msg)
-        # self.uwb_ranging_publisher.publish(uwb_pub_msg)
+        self.uwb_ranging_publisher.publish(uwb_pub_msg)
 
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f'{self.system_id}'] = uwb_pub_msg
