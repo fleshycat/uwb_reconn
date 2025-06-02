@@ -322,7 +322,7 @@ class DroneManager(Node):
         # Send the packet via serial
         self.serial_port.write(packet)
         # Debug logging
-        self.get_logger().debug(
+        self.get_logger().info(
             f"JFi TX → anchor_id={uwb_pub_msg.anchor_id}, "
             f"range_mm={uwb_pub_msg.range}, seq(jfi)={self.jfi_seq}"
         )
@@ -352,7 +352,7 @@ class DroneManager(Node):
                             error_est = struct.unpack('<B I B d d d d d d f f', payload)
 
                             # Log the received values
-                            self.get_logger().debug(
+                            self.get_logger().info(
                                 f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
                                 f"range={range}, rss={rss}, error_est={error_est}"
                             )
@@ -442,14 +442,11 @@ class DroneManager(Node):
                 break
         
         # If no node with ID 0 is found, return
-        if uwb_pub_msg.range == -1:
-            return
-        
-        # Height correction
-        distance = uwb_pub_msg.range / 1000.0                       # mm → m
-        height   = self.monitoring_msg.pos_z
-        square_diff = max(distance**2 - height**2, 0)
-        uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
+        if uwb_pub_msg.range != -1:
+            distance = uwb_pub_msg.range / 1000.0                       # mm → m
+            height   = self.monitoring_msg.pos_z
+            square_diff = max(distance**2 - height**2, 0)
+            uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
         
         # UWB message sequence number
         uwb_pub_msg.seq     = self.uwb_sub_msg.system_time % 256
