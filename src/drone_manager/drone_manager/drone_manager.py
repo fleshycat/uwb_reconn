@@ -186,14 +186,10 @@ class DroneManager(Node):
         except serial.SerialException as e:
             self.get_logger().error(f"Failed to open serial port {serial_port_name}: {e}")
             return
-        
-        # Timer for sending data remains the same
-        # self.send_timer = self.create_timer(0.5, self.send_data)
-
+    
         self.receive_thread = threading.Thread(target=self.receive_data)
         self.receive_thread.daemon = True
         self.receive_thread.start()
-
         ## J-Fi Configuration ##
 
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"  #"drone1/manager/"
@@ -216,8 +212,7 @@ class DroneManager(Node):
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
         # self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         # self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
-        
-        ## J-Fi Sender ##
+        ## Optional
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data) 
 
@@ -226,16 +221,15 @@ class DroneManager(Node):
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
         self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
-        
-        ## J-Fi Receiver ##
-        self.agent_uwb_range_subscribers = [
-            self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_uwb_range_callback(i), qos_profile_sensor_data)
-            for i in self.system_id_list if i != self.system_id
-        ]
-        self.agent_target_subscribers = [
-            self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/target', self.make_target_callback(i), qos_profile_sensor_data)
-            for i in self.system_id_list if i != self.system_id
-        ]
+        ## Optional
+        # self.agent_uwb_range_subscribers = [
+        #     self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_uwb_range_callback(i), qos_profile_sensor_data)
+        #     for i in self.system_id_list if i != self.system_id
+        # ]
+        # self.agent_target_subscribers = [
+        #     self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/target', self.make_target_callback(i), qos_profile_sensor_data)
+        #     for i in self.system_id_list if i != self.system_id
+        # ]
         
         ## OCM Msg ##
         self.ocm_msg = OffboardControlMode()
@@ -270,15 +264,15 @@ class DroneManager(Node):
         self.uwb_threshold = 10.0
         
         ## Timer ##
-        timer_period_ocm = 0.1
+        timer_period_ocm = 0.1          # 10hz
         self.timer_ocm = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
-        timer_period_uwb = 0.02 # 50hz
+        timer_period_uwb = 0.02         # 50hz
         self.timer_uwb = self.create_timer(timer_period_uwb, self.timer_uwb_callback)
-        timer_period_global_path = 0.1
+        timer_period_global_path = 0.1  # 10hz
         self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
-        timer_period_mission = 0.04 # 25hz
+        timer_period_mission = 0.04     # 25hz
         self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
-        timer_period_monitoring = 0.02 # 50hz
+        timer_period_monitoring = 0.02  # 50hz
         self.timer_monitoring = self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
         
         self.gcs_timestamp = Header()
@@ -287,10 +281,9 @@ class DroneManager(Node):
         self.initiate_drone_manager()
     
     ## J-Fi Methods ##
-    def send_data(self, uwb_pub_msg: Ranging):
+    def send_uwb_data(self, uwb_pub_msg: Ranging):
         """
-        인자로 받은 Ranging 메시지를 J-Fi 패킷으로 직렬화하여 시리얼 포트로 송신.
-        페이로드 포맷: '<B i B d d d d d d h H'
+            Payload format for J-Fi ranging message:
           - B: anchor_id (uint8)
           - i: range_mm   (uint32)
           - B: seq_ranging (uint8)
@@ -327,6 +320,30 @@ class DroneManager(Node):
         #     f"range_mm={uwb_pub_msg.range}, seq(jfi)={self.jfi_seq}"
         # )
     
+    def send_target_data(self, target_msg: TrajectorySetpointMsg):
+        """
+            Payload format for J-Fi target message:
+          - d*3: position_x, position_y, position_z (double*3)
+        """
+        fmt = '<d d d'
+        payload = struct.pack(
+            fmt,
+            target_msg.position[0],  # double
+            target_msg.position[1],  # double
+            target_msg.position[2]   # double
+        )
+
+        # Create a JFiProtocol packet
+        self.jfi_seq = (self.jfi_seq + 1) & 0xFF
+        packet = JFiProtocol.create_packet(payload, seq=self.jfi_seq, sid=self.system_id)
+
+        # Send the packet via serial
+        self.serial_port.write(packet)
+        # # Debug logging
+        # self.get_logger().info(
+        #     f"JFi TX → lat={lat:.7f}, lon={lon:.7f}, alt={alt:.2f}, seq(jfi)={self.jfi_seq}"
+        # )
+    
     def receive_data(self):
         protocol_parser = JFiProtocol()
         while rclpy.ok():
@@ -335,14 +352,20 @@ class DroneManager(Node):
                     data = self.serial_port.read(self.serial_port.in_waiting)
                     for b in data:
                         packet = protocol_parser.parse(b)
-                        if packet is not None:
-                            header = packet[:JFiProtocol.HEADER_SIZE]
-                            payload = packet[JFiProtocol.HEADER_SIZE:-JFiProtocol.CHECKSUM_SIZE]
 
-                            # Unpack header (5 bytes)
-                            sync1, sync2, length, seq_jfi, sid = struct.unpack('BBBBB', header)
+                        if packet is None:
+                            continue
 
-                            # Unpack payload
+                        # Unpack header (5 bytes)
+                        header = packet[:JFiProtocol.HEADER_SIZE]
+                        sync1, sync2, length, seq_jfi, sid = struct.unpack('BBBBB', header)
+
+                        # Unpack payload
+                        payload_len = length - JFiProtocol.HEADER_SIZE - JFiProtocol.CHECKSUM_SIZE
+                        payload = packet[JFiProtocol.HEADER_SIZE : JFiProtocol.HEADER_SIZE + payload_len]
+
+                        # Unpack UWB payload data
+                        if payload_len == 62:
                             anchor_id, \
                             range, \
                             seq_ranging, \
@@ -351,13 +374,7 @@ class DroneManager(Node):
                             rss, \
                             error_est = struct.unpack('<B i B d d d d d d f f', payload)
 
-                            # Log the received values
-                            # self.get_logger().info(
-                            #     f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
-                            #     f"range={range}, rss={rss}, error_est={error_est}"
-                            # )
-
-                            # Recover Ranging message
+                            # Recover Ranging
                             uwb_msg = Ranging()
                             uwb_msg.header.stamp = self.get_clock().now().to_msg()
                             uwb_msg.header.frame_id = "map"
@@ -375,6 +392,30 @@ class DroneManager(Node):
 
                             # Update the agent UWB range dictionary
                             self.agent_uwb_range_dic[f'{sid}'] = uwb_msg
+
+                            # Log the received values
+                            # self.get_logger().info(
+                            #     f"JFi RX ← sid={sid}, anchor_id={anchor_id}, "
+                            #     f"range={range}, rss={rss}, error_est={error_est}"
+                            # )
+                        
+                        elif payload_len == 24:
+                            lat, lon, alt = struct.unpack('<d d d', payload)
+
+                            # Recover TrajectorySetpointMsg
+                            target_msg = TrajectorySetpointMsg()
+                            target_msg.position[0] = lat
+                            target_msg.position[1] = lon
+                            target_msg.position[2] = alt
+
+                            # Update the agent target dictionary
+                            self.agent_target_dic[f'{sid}'] = target_msg
+                        
+                        else:
+                            # Ignore undefined payload length
+                            self.get_logger().warn(
+                                f"Undefined J-Fi payload length: {payload_len} bytes (SID={sid})"
+                            )
 
             except serial.SerialException as e:
                 self.get_logger().error(f"Serial read error: {e}")
@@ -460,7 +501,7 @@ class DroneManager(Node):
         uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
         
         # Publish the UWB message
-        self.send_data(uwb_pub_msg)
+        self.send_uwb_data(uwb_pub_msg)
         self.uwb_ranging_publisher.publish(uwb_pub_msg)
 
         # Update the agent UWB range dictionary
@@ -626,17 +667,17 @@ class DroneManager(Node):
             return vec / norm
 
     ## Make and return callback
-    def make_uwb_range_callback(self, sys_id):
-        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} UWB Range Subscriber")
-        def callback(msg):
-            self.agent_uwb_range_dic[f'{sys_id}'] = msg
-        return callback
+    # def make_uwb_range_callback(self, sys_id):
+    #     self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} UWB Range Subscriber")
+    #     def callback(msg):
+    #         self.agent_uwb_range_dic[f'{sys_id}'] = msg
+    #     return callback
     
-    def make_target_callback(self, sys_id):
-        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
-        def callback(msg):
-            self.agent_target_dic[f'{sys_id}'] = msg
-        return callback
+    # def make_target_callback(self, sys_id):
+    #     self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
+    #     def callback(msg):
+    #         self.agent_target_dic[f'{sys_id}'] = msg
+    #     return callback
     
     ## Publisher ##
     def publish_target(self, target):
@@ -648,8 +689,11 @@ class DroneManager(Node):
                    self.monitoring_msg.ref_lon,
                    self.monitoring_msg.ref_alt]
         target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
+
         target.position[0] = target_pos_llh[0]
         target.position[1] = target_pos_llh[1]
+
+        self.send_target_data(target)
         self.target_publisher.publish(target)
 
     # def publish_particle_cloud(self, particles: np.ndarray):
