@@ -430,8 +430,8 @@ class DroneManager(Node):
         
         # Default values
         uwb_pub_msg.range = -1
-        uwb_pub_msg.rss = 0
-        uwb_pub_msg.error_estimation = 0
+        uwb_pub_msg.rss = 0.0
+        uwb_pub_msg.error_estimation = 0.0
 
         # Find the node with ID 0 (Tag)
         for node in self.uwb_sub_msg.nodes:
