@@ -290,20 +290,20 @@ class DroneManager(Node):
     def send_data(self, uwb_pub_msg: Ranging):
         """
         인자로 받은 Ranging 메시지를 J-Fi 패킷으로 직렬화하여 시리얼 포트로 송신.
-        페이로드 포맷: '<B I B d d d d d d h H'
+        페이로드 포맷: '<B i B d d d d d d h H'
           - B: anchor_id (uint8)
-          - I: range_mm   (uint32)
+          - i: range_mm   (uint32)
           - B: seq_ranging (uint8)
           - d*3: pos_x, pos_y, pos_z (double*3)
           - d*3: ori_x, ori_y, ori_z (double*3)
           - f: rss (float32)
           - f: error_estimation (float32)
         """
-        fmt = '<B I B d d d d d d f f'
+        fmt = '<B i B d d d d d d f f'
         payload = struct.pack(
             fmt,
             uwb_pub_msg.anchor_id,                  # uint8
-            uwb_pub_msg.range,                      # uint32 (mm)
+            uwb_pub_msg.range,                      # int32 (mm)
             uwb_pub_msg.seq,                        # uint8
             uwb_pub_msg.anchor_pose.position.x,     # double
             uwb_pub_msg.anchor_pose.position.y,     # double
@@ -349,7 +349,7 @@ class DroneManager(Node):
                             posx, posy, posz, \
                             orix, oriy, oriz, \
                             rss, \
-                            error_est = struct.unpack('<B I B d d d d d d f f', payload)
+                            error_est = struct.unpack('<B i B d d d d d d f f', payload)
 
                             # Log the received values
                             self.get_logger().info(
