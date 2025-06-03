@@ -340,13 +340,13 @@ class DroneManager(Node):
         # Find the node with ID 0 (Tag)
         for node in self.uwb_sub_msg.nodes:
             if node.id == 0:
-                uwb_pub_msg.range = int(node.dis * 1000)
-                uwb_pub_msg.rss = node.rx_rssi
-                uwb_pub_msg.error_estimation = node.fp_rssi
+                uwb_pub_msg.range = int(node.dis * 1000)    # m → mm
+                uwb_pub_msg.rss = node.rx_rssi              # Received Signal Strength Indicator
+                uwb_pub_msg.error_estimation = node.fp_rssi # First Path Received Signal Strength Indicator
                 break
 
         if uwb_pub_msg.range != -1:
-            distance = uwb_pub_msg.range / 1000.0  # mm→m
+            distance = uwb_pub_msg.range / 1000.0                       # mm → m
             height = self.monitoring_msg.pos_z
             square_diff = max(distance**2 - height**2, 0)
             uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
