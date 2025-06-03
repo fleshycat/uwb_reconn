@@ -167,8 +167,8 @@ class GCS(Node):
         self.receive_thread = threading.Thread(target=self._serial_receive_loop, daemon=True)
         self.receive_thread.start()
 
-        # --- 화면 갱신 타이머 (1Hz) ---
-        self.refresh_timer = self.create_timer(1.0, self._print_table)
+        # --- 화면 갱신 타이머 (25Hz) ---
+        self.refresh_timer = self.create_timer(0.04, self._print_table)
 
     def _serial_receive_loop(self):
         while rclpy.ok():
