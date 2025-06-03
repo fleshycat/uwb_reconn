@@ -27,6 +27,7 @@ from drone_manager.jfi import JFiInterface
 from enum import Enum
 import math
 import numpy as np
+import struct
 
 class Mode(Enum):
     QHAC = 0
