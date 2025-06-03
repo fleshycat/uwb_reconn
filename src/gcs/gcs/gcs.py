@@ -35,9 +35,6 @@ class JFiProtocol:
 
     @staticmethod
     def create_packet(payload: bytes, seq: int = 0, sid: int = 1) -> bytes:
-        """
-        Build a J-Fi packet: [SYNC1][SYNC2][LENGTH][SEQ][SID][PAYLOAD...][CHECKSUM_L][CHECKSUM_H]
-        """
         sync1  = 0xAA
         sync2  = 0x55
         length = JFiProtocol.HEADER_SIZE + len(payload) + JFiProtocol.CHECKSUM_SIZE
@@ -53,9 +50,6 @@ class JFiProtocol:
 
     @staticmethod
     def compute_checksum(data: bytes) -> int:
-        """
-        16-bit XOR over all bytes
-        """
         checksum = 0
         for b in data:
             checksum ^= b
@@ -68,9 +62,6 @@ class JFiProtocol:
         self.payload_length = None
 
     def validate_checksum(self) -> bool:
-        """
-        XOR over everything except the last two bytes, compare to received checksum
-        """
         if len(self.buffer) < JFiProtocol.CHECKSUM_SIZE:
             return False
         computed = 0
@@ -79,10 +70,6 @@ class JFiProtocol:
         return computed == self.checksum
 
     def parse(self, byte: int) -> bytes | None:
-        """
-        Feed one byte into the state machine.
-        Returns the complete packet bytes (including header+payload+checksum) once valid.
-        """
         if self.state == ParseState.WAIT_SYNC1:
             if byte == 0xAA:
                 self.reset_parser()
@@ -131,8 +118,7 @@ class JFiProtocol:
 
 class GCS(Node):
     """
-    A minimal GCS-side node that opens the J-Fi serial port,
-    parses incoming packets (either UWB or target), and republishes them as ROS2 topics.
+    A GCS-side node that parses incoming packets (either UWB or target) and displays
     """
     def __init__(self):
         super().__init__('gcs')
@@ -157,9 +143,14 @@ class GCS(Node):
             self.get_logger().error(f'Cannot open serial port {port_name}: {e}')
             raise
 
-        # --- “각 드론(SID 1~4)의 최신 UWB/Target 데이터를 저장할 딕셔너리” ---
-        #   - self.uwb_data[system_id] = (range, rss, err, posx, posy, posz)
-        #   - self.target_data[system_id] = (lat, lon, alt)
+        # --- 드론별 시퀀스/카운터 초기화 (SID 1~4) ---
+        self.last_seq    = {i: None for i in range(1,5)}  # 직전 seq 저장
+        self.recv_count  = {i: 0    for i in range(1,5)}  # 누적 수신된 패킷 수
+        self.loss_count  = {i: 0    for i in range(1,5)}  # 누적 손실된 패킷 수
+
+        # --- 각 드론(SID 1~4)의 최신 UWB/Target 데이터를 저장할 딕셔너리 ---
+        #    self.uwb_data[sid]    = (range, rss, err, posx, posy, posz)
+        #    self.target_data[sid] = (lat, lon, alt)
         self.uwb_data    = {i: None for i in range(1,5)}
         self.target_data = {i: None for i in range(1,5)}
 
@@ -185,25 +176,39 @@ class GCS(Node):
 
     def _handle_packet(self, packet: bytes):
         header = packet[:JFiProtocol.HEADER_SIZE]
-        sync1, sync2, length, seq_jfi, sid = struct.unpack('BBBBB', header)
+        sync1, sync2, length, seq, sid = struct.unpack('BBBBB', header)
+
+        # 손실 패킷 계산
+        prev_seq = self.last_seq[sid]
+        if prev_seq is None:
+            # 첫 수신: 손실 없음, 수신 카운트만 1
+            self.recv_count[sid] = 1
+            self.loss_count[sid] = 0
+        else:
+            expected = (prev_seq + 1) & 0xFF
+            if seq != expected:
+                # 손실 개수 diff 계산
+                diff = (seq - expected) & 0xFF
+                self.loss_count[sid] += diff
+            self.recv_count[sid] += 1
+
+        # 현재 seq를 저장
+        self.last_seq[sid] = seq
 
         payload_len = length - JFiProtocol.HEADER_SIZE - JFiProtocol.CHECKSUM_SIZE
         payload = packet[JFiProtocol.HEADER_SIZE : JFiProtocol.HEADER_SIZE + payload_len]
 
         # --- UWB 데이터 (페이로드 길이 62) ---
-        # format: '<B i B d d d d d d f f'
         if payload_len == 62:
-            anchor_id, range, seq, \
+            anchor_id, range, seq_range, \
             posx, posy, posz, \
             orix, oriy, oriz, \
             rss, err = struct.unpack('<B i B d d d d d d f f', payload)
 
             # sid(=드론 ID)에 해당하는 최신 UWB 정보 업데이트
-            # 저장 형식: (range, rss, error_est, posx, posy, posz)
             self.uwb_data[sid] = (range, rss, err, posx, posy, posz)
 
         # --- Target 데이터 (페이로드 길이 24) ---
-        # format: '<d d d'
         elif payload_len == 24:
             lat, lon, alt = struct.unpack('<d d d', payload)
             # sid(=드론 ID)에 해당하는 최신 Target 정보 업데이트
@@ -211,43 +216,63 @@ class GCS(Node):
 
         else:
             self.get_logger().warn(f'Unknown payload length: {payload_len} bytes (SID={sid})')
-    
+
     def _print_table(self):
         """
-        1초마다 터미널을 클리어한 뒤, 4대 드론의 최신 UWB/Target 데이터를 표 형태로 출력합니다.
+        25초마다 터미널을 클리어한 뒤, 4대 드론의 최신 UWB/Target 데이터를 표 형태로 출력합니다.
         """
         # 터미널 클리어
         print(_CLEAR_SCREEN, end='')
 
-        # 컬럼 헤더 출력
+        # 컬럼 헤더: DRONE | RCVD | LOSS | LOSS(%) | … UWB/Target …
         hdr = (
-            f"{'DRONE':>5} | "
-            f"{'RANGE(mm)':>9} | {'RSS':>5} | {'ERR':>5} | "
-            f"{'POS_X':>9} | {'POS_Y':>9} | {'POS_Z':>9} || "
-            f"{'TGT_X':>11} | {'TGT_Y':>11} | {'TGT_Z':>9}"
+            f"{'DRONE':>5s} | "
+            f"{'RCVD':>5s} | {'LOSS':>5s} | {'LOSS(%)':>7s} | "
+            f"{'RANGE(mm)':>9s} | {'RSS':>5s} | {'ERR':>5s} | "
+            f"{'POS_X':>9s} | {'POS_Y':>9s} | {'POS_Z':>9s} || "
+            f"{'TGT_X':>11s} | {'TGT_Y':>11s} | {'TGT_Z':>9s}"
         )
         print(hdr)
         print("-" * len(hdr))
 
         # 1~4번 드론 순서대로 한 줄씩
-        for system_id in range(1, 5):
-            uwb = self.uwb_data[system_id]
-            tgt = self.target_data[system_id]
-
-            if uwb is None:
-                # 아직 수신된 UWB 정보가 없으면 빈 칸으로 출력
-                rng_str = rss_str = err_str = posx_str = posy_str = posz_str = "   -    "
+        for sid in range(1, 5):
+            # 1) RCVD / LOSS / LOSS(%) 계산
+            recv = self.recv_count[sid]
+            loss = self.loss_count[sid]
+            total = recv + loss
+            if total > 0:
+                loss_pct = loss / total * 100.0
             else:
-                rng_mm, rss, err, posx, posy, posz = uwb
+                loss_pct = 0.0
+            recv_str = f"{recv:5d}"
+            loss_str = f"{loss:5d}"
+            pct_str  = f"{loss_pct:7.1f}"
+
+            # 2) UWB 데이터 문자열
+            uwb = self.uwb_data[sid]
+            if uwb is None:
+                rng_str  =   "   -    "
+                rss_str  =   "   - "
+                err_str  =   "   - "
+                posx_str =   "   -    "
+                posy_str =   "   -    "
+                posz_str =   "   -    "
+            else:
+                rng_mm, rss, err_val, posx, posy, posz = uwb
                 rng_str  = f"{rng_mm:9d}"
                 rss_str  = f"{rss:5.1f}"
-                err_str  = f"{err:5.1f}"
+                err_str  = f"{err_val:5.1f}"
                 posx_str = f"{posx:9.3f}"
                 posy_str = f"{posy:9.3f}"
                 posz_str = f"{posz:9.3f}"
 
+            # 3) Target 데이터 문자열
+            tgt = self.target_data[sid]
             if tgt is None:
-                tgt_x_str = tgt_y_str = tgt_z_str = "     -     "
+                tgt_x_str =   "     -     "
+                tgt_y_str =   "     -     "
+                tgt_z_str =   "   -    "
             else:
                 lat, lon, alt = tgt
                 tgt_x_str = f"{lat:11.7f}"
@@ -255,14 +280,15 @@ class GCS(Node):
                 tgt_z_str = f"{alt:9.3f}"
 
             line = (
-                f"{system_id:>5d} | "
+                f"{sid:>5d} | "
+                f"{recv_str} | {loss_str} | {pct_str} | "
                 f"{rng_str} | {rss_str} | {err_str} | "
                 f"{posx_str} | {posy_str} | {posz_str} || "
                 f"{tgt_x_str} | {tgt_y_str} | {tgt_z_str}"
             )
             print(line)
 
-        print("\n(최신 데이터가 없으면 ‘–’로 표시됩니다.)\n")
+        print("\n(받은 데이터가 없으면 ‘–’로 표시됩니다.)\n")
 
 def main(args=None):
     rclpy.init(args=args)
