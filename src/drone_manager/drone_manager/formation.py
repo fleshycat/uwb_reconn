@@ -1,4 +1,5 @@
 import numpy as np
+from collections import deque
 
 class FormationForce:
     """
@@ -7,7 +8,7 @@ class FormationForce:
       - scale penalty
       - distance penalties for all point pairs (edges + diagonals)
     """
-    def __init__(self, desired_positions,k_scale=0.2, k_pair=1.0, k_shape=1.0, k_z=5.0):
+    def __init__(self, desired_positions, k_scale=0.2, k_pair=1.0, k_shape=1.0, k_z=5.0, tol=1e-3):
         self.X_des = np.array(desired_positions, dtype=float)
         self.n = self.X_des.shape[0]
         # weights
@@ -33,12 +34,10 @@ class FormationForce:
         # desired pairwise distances
         self.pair_dist = [np.linalg.norm(self.X_des[i] - self.X_des[j])
                           for i, j in self.pair_edges]
-        self.prev_total_error = None
-        self.shape_err = None 
-        self.pair_err = None 
-        self.scale_err = None 
-        self.z_error = None
-
+        
+        self.tol = tol
+        self.grad = []
+        
 
     def compute(self, points):
         X = np.array(points)   # shape (n,3)
@@ -72,16 +71,8 @@ class FormationForce:
                 + self.k_scale * grad_scale
                 + self.k_pair  * grad_pair
                 + grad_z) 
+        self.grad = grad
         return np.nan_to_num(grad)
-
-    def is_converged(self, points, tol=1e-1):
-        shape_err_change, pair_err_change, scale_err_change, z_err_change = self.get_err_change(points)
-        if shape_err_change is None or pair_err_change is None or scale_err_change is None or z_err_change is None:
-            return False
-        if shape_err_change < tol and pair_err_change < tol and scale_err_change < tol and z_err_change < tol:
-            return True
-        else:
-            return False
 
     def get_error(self, points):
         X = np.array(points)
@@ -95,35 +86,7 @@ class FormationForce:
             for (i, j), d_des in zip(self.pair_edges, self.pair_dist)
         )
         scale_err = abs(trS - self.tr_des_raw)
-        z_error = np.linalg.norm(X[:, 2] - self.Z_des)
+        # z_error = np.linalg.norm(X[:, 2] - self.Z_des)
         
-        return shape_err, pair_err, scale_err, z_error
-    
-    def get_err_change(self, points):
-        shape_err, pair_err, scale_err, z_error = self.get_error(points)
-        
-        if self.shape_err is not None:
-            shape_err_change = abs(shape_err - self.shape_err)
-        else:
-            shape_err_change = None
-
-        if self.pair_err is not None:
-            pair_err_change = abs(pair_err - self.pair_err)
-        else:
-            pair_err_change = None
-
-        if self.scale_err is not None:
-            scale_err_change = abs(scale_err - self.scale_err)
-        else:
-            scale_err_change = None
-
-        if self.z_error is not None:
-            z_error_change = abs(z_error - self.z_error)
-        else:
-            z_error_change = None
-
-        self.shape_err = shape_err
-        self.pair_err = pair_err
-        self.scale_err = scale_err
-        self.z_error = z_error
-        return (shape_err_change, pair_err_change, scale_err_change, z_error_change)
+        # return shape_err, pair_err, scale_err, z_error
+        return shape_err, pair_err, scale_err
