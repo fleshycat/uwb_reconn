@@ -19,7 +19,14 @@ class MonitoringFlagType(Enum):
         MANUAL_MODE = 3
         AUTO_MODE = 4 
         FAIL_SAFE_MODE = 5           # Not used
-        
+
+class Mode(Enum):
+    QHAC = 0
+    SEARCH = 1
+    HAVE_TARGET = 2
+    COLLECTION = 3
+    RETURN = 4
+    COMPLETED = 5           
 class ProgressStatus(Enum):
     DISARM=0
     ARM=1
@@ -42,8 +49,6 @@ class StartMission(Node):
         self.declare_parameter('system_id', 1)
         self.system_id_ = self.get_parameter('system_id').get_parameter_value().integer_value
         
-        self.get_logger().info(f"Configure DroneManager {self.system_id_}")
-        
         self.topic_prefix_fmu_ = f"drone{self.system_id_}/fmu/"
         self.topic_prefix_manager = f"drone{self.system_id_}/manager/"
         
@@ -53,30 +58,18 @@ class StartMission(Node):
         self.traj_setpoint_publisher_ = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu_}in/trajectory_setpoint', qos_profile_sensor_data)
         self.vehicle_command_publisher_ = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu_}in/vehicle_command', qos_profile_sensor_data)
         self.global_path_publisher = self.create_publisher(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', 10)
+        self.mode_change_publisher_ = self.create_publisher(UInt8, f'{self.topic_prefix_manager}in/mode_change', qos_profile_sensor_data)
 
         timer_period_monitoring = 0.5  # seconds
         self.timer_monitoring_ = self.create_timer(timer_period_monitoring, self.in_progress_callback)
         
-        timer_period_ocm = 0.1
-        self.timer_ocm_ = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
-        
         self.currentProgressStatus=ProgressStatus.DISARM
         
         self.ocm_publisher_ = self.create_publisher(OffboardControlMode, f'{self.topic_prefix_fmu_}in/offboard_control_mode', qos_profile_sensor_data)
-        self.ocm_msg_ = OffboardControlMode()
-        self.ocm_msg_.position = True
-        self.ocm_msg_.velocity = False
-        self.ocm_msg_.acceleration = False
-        self.ocm_msg_.attitude = False
-        self.ocm_msg_.body_rate = False
-        self.ocm_msg_.actuator = False
         
         self.monitoring_flag = False
         
         self.mission_time_count = 0
-        
-    def timer_ocm_callback(self):
-        self.ocm_publisher_.publish(self.ocm_msg_)
         
     def in_progress_callback(self):
         if not self.monitoring_msg_._pos_x:
@@ -126,8 +119,14 @@ class StartMission(Node):
             global_path = GlobalPathMsg()
             global_path.waypoints.append(setpoint)
             self.global_path_publisher.publish(global_path)
-            self.currentProgressStatus=ProgressStatus.Done
+            self.currentProgressStatus=ProgressStatus.MISSION2
         
+        if self.currentProgressStatus == ProgressStatus.MISSION2:
+            mode_change_msg = UInt8()
+            mode_change_msg.data = Mode.SEARCH.value
+            self.mode_change_publisher_.publish(mode_change_msg)
+            self.currentProgressStatus=ProgressStatus.Done
+    
         if self.currentProgressStatus == ProgressStatus.Done:
             self.destroy_node()
             rclpy.shutdown()
