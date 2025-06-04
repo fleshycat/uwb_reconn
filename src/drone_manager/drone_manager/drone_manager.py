@@ -11,7 +11,7 @@ import std_msgs.msg as std_msgs
 from sensor_msgs.msg  import PointCloud2
 from sensor_msgs_py import point_cloud2
 
-from std_msgs.msg import Header
+from std_msgs.msg import Header, UInt8
 
 from drone_manager.class_particle import ParticleFilter
 from drone_manager.formation import FormationForce
@@ -26,7 +26,9 @@ class Mode(Enum):
     QHAC = 0
     SEARCH = 1
     HAVE_TARGET = 2
-
+    COLLECTION = 3
+    RETURN = 4
+    COMPLETED = 5
 class DroneManager(Node):
     def __init__(self):
         super().__init__("drone_manager")
@@ -42,6 +44,7 @@ class DroneManager(Node):
         
         self.monitoring_msg = Monitoring()
         self.uwb_sub_msg = RangingDiff()
+        self.mode = Mode.QHAC
         self.global_path = []
         self.global_path_threshold = 0.1
         self.takeoff_offset_dic = {}
@@ -58,12 +61,14 @@ class DroneManager(Node):
         self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
         self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
+        self.vehicle_command_publisher = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu}in/vehicle_command', qos_profile_sensor_data)
 
         ## Subscriber ##
         self.uwb_subscriber = self.create_subscription(RangingDiff, self.topic_prefix_uwb, self.uwb_msg_callback, qos_profile_sensor_data)
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
         self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
+        self.mode_change_subscriber = self.create_subscription(UInt8, f'{self.topic_prefix_manager}in/mode_change', self.mode_change_callback, qos_profile_sensor_data)
         self.agent_uwb_range_subscribers = [
             self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_uwb_range_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
@@ -124,6 +129,7 @@ class DroneManager(Node):
     
     def initiate_drone_manager(self):
         self.change_mode(Mode.QHAC)
+        self.change_ocm_msg_position()
         self.agent_uwb_range_dic.clear()
 
     ## Timer callback ##
@@ -131,7 +137,7 @@ class DroneManager(Node):
         self.ocm_publisher.publish(self.ocm_msg)
     
     def timer_global_path_callback(self):
-        if len(self.global_path) == 0 or self.mode != Mode.QHAC:
+        if len(self.global_path) == 0 or self.mode != Mode.SEARCH:
             # self.get_logger().warn("Attempting to send a setpoint when the global path is empty ")
             return
         else:
@@ -149,12 +155,6 @@ class DroneManager(Node):
                                     ) <= self.global_path_threshold:    
                 self.global_path.pop(0)
                 self.get_logger().error("WayPoint Arrived")
-    
-    def timer_gradient_callback(self):
-        if self.mode != Mode.HAVE_TARGET:
-            return
-        else:
-            self.traj_setpoint_publisher.publish(self.direction)
     
     def timer_uwb_callback(self):
         uwb_pub_msg = Ranging()
@@ -193,9 +193,16 @@ class DroneManager(Node):
             return
         self.update_uwb_data_list()
         self.particle_step()
-        self.move_agent()
         if len(self.uwb_data_list) >= 3:
             self.share_target()
+        self.formation_move_agent()
+        if self.mode == Mode.COLLECTION:
+            self.handle_COLLECTION()
+        elif self.mode == Mode.RETURN:
+            self.handle_RETURN()
+        elif self.mode == Mode.COMPLETED:
+            self.handle_COMPLETED()
+        
 
     ## Sub callback ##
     def monitoring_callback(self, msg):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
@@ -219,13 +226,27 @@ class DroneManager(Node):
         self.get_logger().info("System Time Synchronize.")
         self.gcs_timestamp = msg
 
+    def mode_change_callback(self, msg):
+        self.get_logger().info(f"DroneManager {self.system_id} : Mode Change Request : {msg.data}")
+        if msg.data == Mode.SEARCH.value:
+            self.change_mode(Mode.SEARCH)
+        elif msg.data == Mode.HAVE_TARGET.value:
+            self.change_mode(Mode.HAVE_TARGET)
+        elif msg.data == Mode.COLLECTION.value:
+            self.change_mode(Mode.COLLECTION)
+        elif msg.data == Mode.RETURN.value:
+            self.change_mode(Mode.RETURN)
+        elif msg.data == Mode.COMPLETED.value:
+            self.change_mode(Mode.COMPLETED)
+
     ## Particle Filter ##
     def particle_step(self):        
+        ## It should run only when the mode is SERACH or HAVE_TARGET ##
+        if not (self.mode == Mode.SEARCH or self.mode == Mode.HAVE_TARGET):
+            return
         if len(self.uwb_data_list) <= 0:
-            # self.get_logger().info(f"DroneManager{self.system_id}: No uwb data available")
-            self.have_target = False
-            self.mode = Mode.QHAC
-            # self.particle_filter.initialize([self.monitoring_msg.pos_x, self.monitoring_msg.pos_y])
+            if self.mode != Mode.SEARCH:
+                self.change_mode(Mode.SEARCH)
             return
         
         sensor_positions = [row[0] for row in self.uwb_data_list]
@@ -240,11 +261,14 @@ class DroneManager(Node):
         self.publish_target(estimate)
         if self.particle is not None:
             self.publish_particle_cloud(self.particle)
-        if self.have_target == False:
-            self.have_target = True
+        if self.mode == Mode.SEARCH:
+            self.get_logger().info(f"DroneManager {self.system_id} : Particle Filter Estimate : {estimate}")
             self.change_mode(Mode.HAVE_TARGET)
     
     def share_target(self):
+        ## It should run only when the mode is HAVE_TARGET ##
+        if self.mode != Mode.HAVE_TARGET:
+            return
         targets = []
         for key, value in self.agent_target_dic.items():
             if value is not None:
@@ -271,8 +295,9 @@ class DroneManager(Node):
                 ])
     
     ## Formation & Repulsion
-    def move_agent(self):
-        if not self.have_target:
+    def formation_move_agent(self):
+        ## It should run only when the mode is HAVE_TARGET ##
+        if self.mode != Mode.HAVE_TARGET:
             return
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
@@ -283,6 +308,17 @@ class DroneManager(Node):
                 value.anchor_pose.position.z
             ]
         grad_formation = self.f_formation.compute(agents_pos)[self.system_id-1]
+        ## Check if formation is converged ##
+        err1, err2, err3, err4 = self.f_formation.get_error(agents_pos)
+        self.get_logger().info(f"DroneManager {self.system_id} : shape_err, pair_err, scale_err, z_error : {err1}, {err2}, {err3}, {err4}")
+        self.get_logger().info(f"DroneManager {self.system_id} : is_converged : {self.f_formation.is_converged(agents_pos, tol=0.1)}")
+        if self.f_formation.is_converged(agents_pos, tol=0.001):
+            self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
+            if self.system_id == self.system_id_list[0]:
+                self.change_mode(Mode.COLLECTION)
+            else:
+                self.change_mode(Mode.RETURN)
+            return
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
         grad_target = self.f_target.compute(
             current_pos=[
@@ -341,6 +377,121 @@ class DroneManager(Node):
         norm = np.linalg.norm(vec)
         if norm > 1e-8:
             return vec / norm
+
+    def handle_COLLECTION(self):
+        agents_pos = [None]*len(self.system_id_list)
+        for key, value in self.agent_uwb_range_dic.items():
+            idx = int(key)-1 
+            agents_pos[idx] = [
+                value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
+                value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
+                value.anchor_pose.position.z
+            ]
+        grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
+        grad_target = self.f_target.compute(
+            current_pos=[
+                self.monitoring_msg.pos_x,
+                self.monitoring_msg.pos_y,
+                self.monitoring_msg.pos_z,
+                ],
+            target=[
+                self.target[0],
+                self.target[1],
+                - self.mission_zlevel,
+                ]
+            )
+        w_repulsion, w_target = self.compute_weight()[:2]
+        total_grad = (
+            + w_repulsion * grad_repulsion
+            - w_target    * grad_target * 5
+        )
+        total_grad = np.nan_to_num(total_grad)
+        result_direc = self.set_direction(total_grad)
+        speed = min(1000, np.linalg.norm(total_grad))
+        dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
+        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        current_pos=np.array([
+                self.monitoring_msg.pos_x,
+                self.monitoring_msg.pos_y,
+                self.monitoring_msg.pos_z,
+                ])
+        dt = 0.04
+        next_pos = current_pos + dir_safe * speed_safe * dt
+        next_pos[2] = min(next_pos[2], -0.1)
+        setpoint = TrajectorySetpointMsg()
+        setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
+        setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        direction = TrajectorySetpointMsg()
+        direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
+        self.total_gradient_publisher.publish(direction)
+        self.traj_setpoint_publisher.publish(setpoint)
+
+        if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
+                                    target_pos = [self.target[0], self.target[1]]
+                                    ) <= 0.5:
+            self.get_logger().info(f"DroneManager {self.system_id} : Collection Completed")
+            self.change_mode(Mode.RETURN)
+    
+    def handle_RETURN(self):
+        agents_pos = [None]*len(self.system_id_list)
+        for key, value in self.agent_uwb_range_dic.items():
+            idx = int(key)-1 
+            agents_pos[idx] = [
+                value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
+                value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
+                value.anchor_pose.position.z
+            ]
+        grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
+        grad_target = self.f_target.compute(
+            current_pos=[
+                self.monitoring_msg.pos_x,
+                self.monitoring_msg.pos_y,
+                self.monitoring_msg.pos_z,
+                ],
+            target=[
+                0.0,
+                0.0,
+                - self.mission_zlevel,
+                ]
+            )
+        w_repulsion, w_target = self.compute_weight()[:2]
+        total_grad = (
+            + w_repulsion * grad_repulsion
+            - w_target    * grad_target
+        )
+        total_grad = np.nan_to_num(total_grad)
+        result_direc = self.set_direction(total_grad)
+        speed = min(1000, np.linalg.norm(total_grad))
+        dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
+        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        current_pos=np.array([
+                self.monitoring_msg.pos_x,
+                self.monitoring_msg.pos_y,
+                self.monitoring_msg.pos_z,
+                ])
+        dt = 0.04
+        next_pos = current_pos + dir_safe * speed_safe * dt
+        next_pos[2] = min(next_pos[2], -0.1)
+        setpoint = TrajectorySetpointMsg()
+        setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
+        setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        direction = TrajectorySetpointMsg()
+        direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
+        self.total_gradient_publisher.publish(direction)
+        self.traj_setpoint_publisher.publish(setpoint)
+
+        if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
+                                    target_pos = [0.0, 0.0]
+                                    ) <= 0.5:    
+            self.get_logger().info(f"DroneManager {self.system_id} : Return Completed")
+            self.change_mode(Mode.COMPLETED)
+            
+    def handle_COMPLETED(self):
+        cmd  = VehicleCommandMsg()
+        cmd.target_system = self.system_id
+        cmd.command = 21  # MAV_CMD_NAV_LAND
+        cmd.from_external = True
+        self.vehicle_command_publisher.publish(cmd)
 
     ## Make and return callback
     def make_uwb_range_callback(self, sys_id):
@@ -411,19 +562,30 @@ class DroneManager(Node):
                 NED = LLH2NED(LLH, ref_LLH)
                 self.takeoff_offset_dic[f'{key}'] = NED
             except Exception as e:
-                self.get_logger().warn(f"Key {key} skipped: {e}")
+                pass
+                # self.get_logger().warn(f"Key {key} skipped: {e}")
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
 
     def change_mode(self, mode):
-        self.mode = mode
-        self.get_logger().info(f'Mode Changed : {mode}')
+        if mode == self.mode:
+            return
         if mode == Mode.QHAC:
             self.change_ocm_msg_position()
-        elif mode == Mode.HAVE_TARGET:
-            pass
+        elif mode == Mode.SEARCH:                       ## Search Mode is agents searching for target
+            self.have_target = False
+        elif mode == Mode.HAVE_TARGET:                  ## Have Target Mode is agents have target and adjust formation
+            self.have_target = True
             # self.change_ocm_msg_velocity()
+        elif mode == Mode.COLLECTION:                   ## Collection Mode is agents collecting target
+            pass
+        elif mode == Mode.RETURN:                       ## Return Mode is agents returning to home position
+            pass
+        elif mode == Mode.COMPLETED:                      ## Landing Mode is agents landing
+            pass
+        self.mode = mode
+        self.get_logger().info(f'Mode Changed : {mode}')
         
 
 # WGS-84 
