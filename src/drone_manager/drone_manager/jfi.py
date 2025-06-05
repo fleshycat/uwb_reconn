@@ -24,21 +24,21 @@ class JFiProtocol:
     @staticmethod
     def create_packet(payload: bytes, seq: int = 0, sid: int = 1) -> bytes:
         """
-        J-Fi 패킷 생성기 (헤더 + 페이로드 + 체크섬)
+        J-Fi packet (header + payload + checksum)
           - SYNC1=0xAA, SYNC2=0x55
           - HEADER: [SYNC1, SYNC2, LENGTH, SEQ, SID]
-          - CHECKSUM: 전체 바이트(HEADER+PAYLOAD)에 대해 16-bit XOR
+          - CHECKSUM: 16-bit XOR for all bytes
         Args:
-            payload: 페이로드 바이트
-            seq:     J-Fi 시퀀스 번호 (0~255)
-            sid:     송신자 시스템 ID (0~255)
+            payload: data to be sent (bytes)
+            seq:     J-Fi sequence num (0~255)
+            sid:     Source System ID (0~255)
         Returns:
-            완성된 J-Fi 패킷 (bytes)
+            Created J-Fi packet (bytes)
         """
         sync1 = 0xAA
         sync2 = 0x55
 
-        # 총 길이 = HEADER(5) + PAYLOAD + CHECKSUM(2)
+        # Length = HEADER(5) + PAYLOAD + CHECKSUM(2)
         length = JFiProtocol.HEADER_SIZE + len(payload) + JFiProtocol.CHECKSUM_SIZE
 
         # HEADER: SYNC1, SYNC2, LENGTH, SEQ, SID
@@ -52,9 +52,6 @@ class JFiProtocol:
 
     @staticmethod
     def compute_checksum(data: bytes) -> int:
-        """
-        16-bit XOR 체크섬 계산
-        """
         c = 0
         for b in data:
             c ^= b
@@ -67,10 +64,6 @@ class JFiProtocol:
         self.payload_length = None
 
     def validate_checksum(self) -> bool:
-        """
-        버퍼에 쌓인 바이트(마지막 2바이트 제외)에 대해 XOR을 계산한 뒤,
-        마지막 2바이트(수신된 체크섬)와 비교.
-        """
         if len(self.buffer) < JFiProtocol.CHECKSUM_SIZE:
             return False
         calc = 0
@@ -80,8 +73,8 @@ class JFiProtocol:
 
     def parse(self, byte: int) -> bytes | None:
         """
-        한 바이트씩 feed하여 패킷 전체가 완성되면 ‘완성된 패킷(bytes)’을 반환하고,
-        그렇지 않으면 None을 반환.
+        Feed each byte and return the 'completed packet' when the entire packet is completed,
+        Otherwise, return None.
         """
         if self.state == ParseState.WAIT_SYNC1:
             if byte == 0xAA:
@@ -130,21 +123,13 @@ class JFiProtocol:
 
 class JFiInterface:
     """
-    실제 시리얼 포트를 열고, J-Fi 패킷을 보내거나 수신할 때 사용합니다.
+    Use to open a physical serial port and send or receive J-Fi packets.
 
-    self.serial_port:      pyserial.Serial 객체
-    self.parser:           JFiProtocol 인스턴스
-    self.recv_thread:      수신 스레드
-    self.receive_callback: 수신된 완성 패킷을 처리할 콜백 함수
+    self.serial_port:      pyserial.Serial object
+    self.receive_callback: Callback function to handle received completion packets
     """
 
     def __init__(self, port_name: str, baudrate: int, receive_callback):
-        """
-        Args:
-          port_name:         시리얼 포트 이름 (예: '/dev/ttyUSB0')
-          baudrate:          시리얼 통신 속도 (예: 115200)
-          receive_callback:  패킷이 완성되었을 때 호출할 함수(packet_bytes, header_fields)
-        """
         self.parser = JFiProtocol()
         self.serial_port = None
         self.receive_callback = receive_callback
@@ -154,23 +139,14 @@ class JFiInterface:
         except serial.SerialException as e:
             raise RuntimeError(f"Cannot open serial port {port_name}: {e}")
 
-        # 수신 전용 스레드 시작
         self.recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
         self.recv_thread.start()
 
     def send_packet(self, payload: bytes, seq: int, sid: int) -> None:
-        """
-        payload: 바이트열 그대로 전달.
-        seq, sid: 0~255 정수
-        """
         packet = JFiProtocol.create_packet(payload, seq=seq, sid=sid)
         self.serial_port.write(packet)
 
     def _recv_loop(self):
-        """
-        시리얼 포트에서 바이트를 읽어 와서, parser.parse(byte) 한 뒤,
-        완성된 패킷이 들어오면 self.receive_callback(packet_bytes, header).
-        """
         while True:
             try:
                 if self.serial_port.in_waiting:
@@ -178,10 +154,10 @@ class JFiInterface:
                     for b in data:
                         packet = self.parser.parse(b)
                         if packet:
-                            # 헤더 필드 추출
+                            # extract header
                             header = packet[:JFiProtocol.HEADER_SIZE]
                             sync1, sync2, length, seq, sid = struct.unpack('BBBBB', header)
-                            # 페이로드만 추출
+                            # extract payload
                             payload_len = length - JFiProtocol.HEADER_SIZE - JFiProtocol.CHECKSUM_SIZE
                             payload = packet[JFiProtocol.HEADER_SIZE : JFiProtocol.HEADER_SIZE + payload_len]
                             self.receive_callback(payload, seq, sid)
