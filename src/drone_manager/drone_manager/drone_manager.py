@@ -351,10 +351,9 @@ class DroneManager(Node):
             square_diff = max(distance**2 - height**2, 0)
             uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
         
-        # UWB message sequence number
-        uwb_pub_msg.seq     = self.uwb_sub_msg.system_time % 256
         # Mode Value
-        uwb_pub_msg.error_estimation           = float(self.mode_handler.get_mode().value)
+        uwb_pub_msg.seq = self.mode_handler.get_mode().value
+
         # Drone NED position
         uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
         uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
@@ -534,7 +533,7 @@ class DroneManager(Node):
 
     def is_formation_converged(self, grad_norm):
         # for value in self.agent_uwb_range_dic.values():
-        #     if value.error_estimation == Mode.RETURN:
+        #     if value.seq == Mode.RETURN:
         #         self.change_mode(Mode.RETURN)
         #         return
         if grad_norm < self.tol:
@@ -542,7 +541,7 @@ class DroneManager(Node):
         # else:
         #     if self.mode_handler.is_in_mode(Mode.CONVERGED):
         #         self.change_mode(Mode.HAVE_TARGET)
-        if all(v.error_estimation == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
+        if all(v.seq == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
             self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
             if self.system_id == self.system_id_list[0]:
                 self.change_mode(Mode.COLLECTION, delay_seconds=1.0)
