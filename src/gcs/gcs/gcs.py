@@ -149,7 +149,7 @@ class GCS(Node):
         self.loss_count  = {i: 0    for i in range(1,5)}  # 누적 손실된 패킷 수
 
         # --- 각 드론(SID 1~4)의 최신 UWB/Target 데이터를 저장할 딕셔너리 ---
-        #    self.uwb_data[sid]    = (range, rss, err, posx, posy, posz)
+        #    self.uwb_data[sid]    = (range_mm, mode, rss, err, posx, posy, posz)
         #    self.target_data[sid] = (lat, lon, alt)
         self.uwb_data    = {i: None for i in range(1,5)}
         self.target_data = {i: None for i in range(1,5)}
@@ -187,7 +187,6 @@ class GCS(Node):
         else:
             expected = (prev_seq + 1) & 0xFF
             if seq != expected:
-                # 손실 개수 diff 계산
                 diff = (seq - expected) & 0xFF
                 self.loss_count[sid] += diff
             self.recv_count[sid] += 1
@@ -200,13 +199,14 @@ class GCS(Node):
 
         # --- UWB 데이터 (페이로드 길이 62) ---
         if payload_len == 62:
-            anchor_id, range, seq_range, \
+            anchor_id, range_mm, mode, \
             posx, posy, posz, \
             orix, oriy, oriz, \
             rss, err = struct.unpack('<B i B d d d d d d f f', payload)
 
             # sid(=드론 ID)에 해당하는 최신 UWB 정보 업데이트
-            self.uwb_data[sid] = (range, rss, err, posx, posy, posz)
+            # 저장 형식: (range_mm, mode, rss, err, posx, posy, posz)
+            self.uwb_data[sid] = (range_mm, mode, rss, err, posx, posy, posz)
 
         # --- Target 데이터 (페이로드 길이 24) ---
         elif payload_len == 24:
@@ -219,25 +219,26 @@ class GCS(Node):
 
     def _print_table(self):
         """
-        25초마다 터미널을 클리어한 뒤, 4대 드론의 최신 UWB/Target 데이터를 표 형태로 출력합니다.
+        25Hz마다 터미널을 클리어한 뒤, 4대 드론의 최신 UWB/Target 데이터를
+        “DRONE | RCVD | LOSS | LOSS(%) | RANGE | RSS | ERR | POS_X | POS_Y | POS_Z | MODE | TGT_X | TGT_Y | TGT_Z” 형태로 출력
         """
         # 터미널 클리어
         print(_CLEAR_SCREEN, end='')
 
-        # 컬럼 헤더: DRONE | RCVD | LOSS | LOSS(%) | … UWB/Target …
+        # 1) 컬럼 헤더: DRONE | RCVD | LOSS | LOSS(%) | RANGE(mm) | RSS | ERR | POS_X | POS_Y | POS_Z | MODE | TGT_X | TGT_Y | TGT_Z
         hdr = (
             f"{'DRONE':>5s} | "
             f"{'RCVD':>5s} | {'LOSS':>5s} | {'LOSS(%)':>7s} | "
             f"{'RANGE(mm)':>9s} | {'RSS':>5s} | {'ERR':>5s} | "
-            f"{'POS_X':>9s} | {'POS_Y':>9s} | {'POS_Z':>9s} || "
+            f"{'POS_X':>9s} | {'POS_Y':>9s} | {'POS_Z':>9s} | {'MODE':>5s} || "
             f"{'TGT_X':>11s} | {'TGT_Y':>11s} | {'TGT_Z':>9s}"
         )
         print(hdr)
         print("-" * len(hdr))
 
-        # 1~4번 드론 순서대로 한 줄씩
+        # 2) 1~4번 드론 순서대로 한 줄씩
         for sid in range(1, 5):
-            # 1) RCVD / LOSS / LOSS(%) 계산
+            # (1) RCVD / LOSS / LOSS(%) 계산
             recv = self.recv_count[sid]
             loss = self.loss_count[sid]
             total = recv + loss
@@ -249,41 +250,45 @@ class GCS(Node):
             loss_str = f"{loss:5d}"
             pct_str  = f"{loss_pct:7.1f}"
 
-            # 2) UWB 데이터 문자열
+            # (2) UWB 데이터 문자열
             uwb = self.uwb_data[sid]
             if uwb is None:
-                rng_str  =   "   -    "
-                rss_str  =   "   - "
-                err_str  =   "   - "
-                posx_str =   "   -    "
-                posy_str =   "   -    "
-                posz_str =   "   -    "
+                rng_str  = "   -    "
+                mode     = "    -"
+                rss_str  = "   - "
+                err_str  = "   - "
+                posx_str = "   -    "
+                posy_str = "   -    "
+                posz_str = "   -    "
             else:
-                rng_mm, rss, err_val, posx, posy, posz = uwb
-                rng_str  = f"{rng_mm:9d}"
+                # uwb 형식: (range_mm, mode, rss, err, posx, posy, posz)
+                range_mm, mode, rss, err_val, posx, posy, posz = uwb
+                rng_str  = f"{range_mm:9d}"
+                mode     = f"{mode:5d}"
                 rss_str  = f"{rss:5.1f}"
                 err_str  = f"{err_val:5.1f}"
                 posx_str = f"{posx:9.3f}"
                 posy_str = f"{posy:9.3f}"
                 posz_str = f"{posz:9.3f}"
 
-            # 3) Target 데이터 문자열
+            # (3) Target 데이터 문자열
             tgt = self.target_data[sid]
             if tgt is None:
-                tgt_x_str =   "     -     "
-                tgt_y_str =   "     -     "
-                tgt_z_str =   "   -    "
+                tgt_x_str = "     -     "
+                tgt_y_str = "     -     "
+                tgt_z_str = "   -    "
             else:
                 lat, lon, alt = tgt
                 tgt_x_str = f"{lat:11.7f}"
                 tgt_y_str = f"{lon:11.7f}"
                 tgt_z_str = f"{alt:9.3f}"
 
+            # (4) 한 줄에 모두 합쳐서 출력
             line = (
                 f"{sid:>5d} | "
                 f"{recv_str} | {loss_str} | {pct_str} | "
                 f"{rng_str} | {rss_str} | {err_str} | "
-                f"{posx_str} | {posy_str} | {posz_str} || "
+                f"{posx_str} | {posy_str} | {posz_str} | {mode}    || "
                 f"{tgt_x_str} | {tgt_y_str} | {tgt_z_str}"
             )
             print(line)
