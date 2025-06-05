@@ -201,9 +201,9 @@ class DroneManager(Node):
     def send_uwb_data(self, uwb_pub_msg: Ranging):
         """
             Payload format for UWB ranging message:
-          - B: anchor_id (uint8)
+          - B: system_id (uint8)
           - i: range (int32)
-          - B: seq_ranging (uint8)
+          - B: MODE  (uint8)
           - d*3: pos_x, pos_y, pos_z (double*3)
           - d*3: ori_x, ori_y, ori_z (double*3)
           - f: rss (float32)
@@ -248,7 +248,7 @@ class DroneManager(Node):
     def _on_jfi_payload(self, payload: bytes, seq_jfi: int, sid: int):
         if len(payload) == 62:
             # UWB payload: '<B i B d d d d d d f f'
-            anchor_id, range, seq, \
+            anchor_id, range, mode, \
             posx, posy, posz, \
             orix, oriy, oriz, \
             rss, err = struct.unpack('<B i B d d d d d d f f', payload)
@@ -258,7 +258,7 @@ class DroneManager(Node):
             uwb_msg.header.frame_id = "map"
             uwb_msg.anchor_id = anchor_id
             uwb_msg.range = range
-            uwb_msg.seq = seq
+            uwb_msg.seq = mode
             uwb_msg.anchor_pose.position.x = posx
             uwb_msg.anchor_pose.position.y = posy
             uwb_msg.anchor_pose.position.z = posz
@@ -335,7 +335,7 @@ class DroneManager(Node):
         # Default values
         uwb_pub_msg.range = -1
         uwb_pub_msg.rss = 0.0
-        uwb_pub_msg.error_estimation = 1.0
+        uwb_pub_msg.error_estimation = 0.0
 
         # Find the node with ID 0 (Tag)
         for node in self.uwb_sub_msg.nodes:
