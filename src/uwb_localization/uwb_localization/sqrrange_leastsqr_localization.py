@@ -118,7 +118,7 @@ class LocalizationNode(Node):
 
         robot_pos=[]
         
-        if len(self.dictected_anchor_pos)!=0:
+        if len(self.dictected_anchor_pos)>=3:
             robot_pos = self.position_calculation(np.array(self.dictected_anchor_pos), np.array(self.dictedted_anchor_ranging))
         
         if robot_pos is not None and len(robot_pos) > 0:
