@@ -188,7 +188,7 @@ class DroneManager(Node):
         self.timer_uwb = self.create_timer(0.02, self.timer_uwb_callback)          # 50 Hz
         self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)  # 10 Hz
         self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)  # 25 Hz
-        self.timer_monitoring = self.create_timer(0.02, self.timer_monitoring_pub_callback)  # 50 Hz
+        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  # 50 Hz
 
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
@@ -365,7 +365,7 @@ class DroneManager(Node):
         
         # Publish the UWB message
         self.send_uwb_data(uwb_pub_msg)
-        self.uwb_ranging_publisher.publish(uwb_pub_msg)
+        # self.uwb_ranging_publisher.publish(uwb_pub_msg)
 
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f"{self.system_id}"] = uwb_pub_msg
