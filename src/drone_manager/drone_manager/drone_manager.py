@@ -109,11 +109,11 @@ class DroneManager(Node):
             f"{self.topic_prefix_manager}out/ranging",
             qos_profile_sensor_data
         )
-        self.target_publisher = self.create_publisher(
-            TrajectorySetpointMsg,
-            f"{self.topic_prefix_manager}out/target",
-            qos_profile_sensor_data
-        )
+        # self.target_publisher = self.create_publisher(
+        #     TrajectorySetpointMsg,
+        #     f"{self.topic_prefix_manager}out/target",
+        #     qos_profile_sensor_data
+        # )
         self.vehicle_command_publisher = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu}in/vehicle_command', qos_profile_sensor_data)
 
         # --- Subscriber ---
@@ -486,7 +486,7 @@ class DroneManager(Node):
             ]
         grad_formation = self.f_formation.compute(agents_pos)[self.system_id-1]
         ## Check if formation is converged ##
-        err1, err2, err3 = self.f_formation.get_error(agents_pos)
+        # err1, err2, err3 = self.f_formation.get_error(agents_pos)
         # self.get_logger().info(f"DroneManager {self.system_id} : shape_err, pair_err, scale_err: {err1}, {err2}, {err3}")
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
         grad_target = self.f_target.compute(
