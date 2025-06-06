@@ -160,9 +160,9 @@ class DroneManager(Node):
         self.tol = 1.5
         self.f_repulsion = RepulsionForce(
             n_agents=len(self.system_id_list),
-            c_rep=3.0, cutoff=2.0, sigma=1.0
+            c_rep=3.0, cutoff=3.0, sigma=1.5
         )
-        self.f_target = TargetForce([0, 0], k_target=1.0)
+        self.f_target = TargetForce([0, 0], k_target=3.0)
         length = np.linalg.norm(np.array(desired_formation[0]) - np.array(desired_formation[1]))
         self.target_bound = np.sqrt(self.mission_zlevel**2 + length**2 / 2.0)
         self.weight_table = [
@@ -188,7 +188,7 @@ class DroneManager(Node):
         self.timer_uwb = self.create_timer(0.02, self.timer_uwb_callback)          # 50 Hz
         self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)  # 10 Hz
         self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)  # 25 Hz
-        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  # 50 Hz
+        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  # 1 Hz
 
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
