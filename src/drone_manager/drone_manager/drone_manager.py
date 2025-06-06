@@ -105,6 +105,7 @@ class DroneManager(Node):
         ## ModeHandler ##
         self.mode_handler = ModeHandler()
         self.handle_flag = False
+        self.collection_step = 0
         
         ## Timer ##
         timer_period_ocm = 0.1
@@ -352,7 +353,7 @@ class DroneManager(Node):
         if all(v.error_estimation == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
             self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
             if self.system_id == self.system_id_list[0]:
-                self.change_mode(Mode.COLLECTION, delay_seconds=1.0)
+                self.change_mode(Mode.COLLECTION, delay_seconds=2.0)
             else:
                 self.change_mode(Mode.RETURN, delay_seconds=3.0)
             return
@@ -473,17 +474,20 @@ class DroneManager(Node):
                 value.anchor_pose.position.z
             ]
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
+        collection_target=[]
+        if self.collection_step == 0:
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 2.0)]
+        elif self.collection_step == 1:
+            collection_target = [self.target[0], self.target[1], - (0.2)]
+        elif self.collection_step == 2:
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 2.0)]
         grad_target = self.f_target.compute(
             current_pos=[
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
                 self.monitoring_msg.pos_z,
                 ],
-            target=[
-                self.target[0],
-                self.target[1],
-                - ( self.mission_zlevel + 2.0 ),
-                ]
+            target = collection_target
             )
         w_repulsion, w_target = self.compute_weight()[:2]
         total_grad = (
@@ -510,13 +514,23 @@ class DroneManager(Node):
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
         self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
-
-        if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
-                                    target_pos = [self.target[0], self.target[1]]
-                                    ) <= 0.5:
-            self.get_logger().info(f"DroneManager {self.system_id} : Collection Completed")
-            self.handle_flag = True
-            self.change_mode(Mode.RETURN, delay_seconds=5.0)
+        
+        remain_distance = np.linalg.norm(
+            np.array([self.monitoring_msg.pos_x, self.monitoring_msg.pos_y, self.monitoring_msg.pos_z]) -
+            np.array([collection_target[0], collection_target[1], collection_target[2]])
+        )
+        if remain_distance <= 0.2:
+            if self.collection_step == 0:
+                self.collection_step = 1
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Step 1")
+            elif self.collection_step == 1:
+                self.collection_step = 2
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Step 2")
+            elif self.collection_step == 2:
+                self.collection_step = 0
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Completed")
+                self.handle_flag = True
+                self.change_mode(Mode.RETURN, delay_seconds=5.0)
 
     ## Make and return callback
     def make_uwb_range_callback(self, sys_id):

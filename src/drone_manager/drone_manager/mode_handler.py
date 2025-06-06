@@ -36,6 +36,7 @@ class ModeHandler():
         if mode == self.mode:
             return
         if mode == Mode.QHAC:
+            self.collection_step = 0
             pass
         elif mode == Mode.SEARCH:                       ## Search Mode is agents searching for target
             self.have_target = False
