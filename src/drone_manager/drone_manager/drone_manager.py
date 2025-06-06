@@ -59,7 +59,7 @@ class DroneManager(Node):
         self.monitoring_subscriber = self.create_subscription(Monitoring, f'{self.topic_prefix_fmu}out/monitoring', self.monitoring_callback, qos_profile_sensor_data)  #"drone1/fmu/out/monitoring"
         self.timestamp_subscriber = self.create_subscription(Header, f'qhac/manager/in/timestamp',self.timestamp_callback, 10)
         self.global_path_subscriber = self.create_subscription(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', self.global_path_callback, 10)
-        self.mode_change_subscriber = self.create_subscription(UInt8, f'{self.topic_prefix_manager}in/mode_change', self.mode_change_callback, qos_profile_sensor_data)
+        self.mode_change_subscriber = self.create_subscription(UInt8, f'{self.topic_prefix_manager}in/mode_change', self.mode_change_callback, 10)
         self.agent_uwb_range_subscribers = [
             self.create_subscription(Ranging, f'drone{i}/manager/out/ranging', self.make_uwb_range_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id

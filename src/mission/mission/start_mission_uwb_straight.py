@@ -58,7 +58,7 @@ class StartMission(Node):
         self.traj_setpoint_publisher_ = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu_}in/trajectory_setpoint', qos_profile_sensor_data)
         self.vehicle_command_publisher_ = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu_}in/vehicle_command', qos_profile_sensor_data)
         self.global_path_publisher = self.create_publisher(GlobalPathMsg, f'{self.topic_prefix_manager}in/global_path', 10)
-        self.mode_change_publisher_ = self.create_publisher(UInt8, f'{self.topic_prefix_manager}in/mode_change', qos_profile_sensor_data)
+        self.mode_change_publisher_ = self.create_publisher(UInt8, f'{self.topic_prefix_manager}in/mode_change', 10)
 
         timer_period_monitoring = 0.5  # seconds
         self.timer_monitoring_ = self.create_timer(timer_period_monitoring, self.in_progress_callback)
