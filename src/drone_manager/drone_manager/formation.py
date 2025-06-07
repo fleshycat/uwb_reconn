@@ -37,7 +37,27 @@ class FormationForce:
         
         self.tol = tol
         self.grad = []
+    
+    def set_desired_formation(self, desired_positions):
+        self.X_des = np.array(desired_positions, dtype=float)
+        self.n = self.X_des.shape[0]
+        # update Laplacian
+        L = -np.ones((self.n, self.n))
+        np.fill_diagonal(L, self.n - 1)
+        self.L = L
+        self.Z_des = self.X_des[:, 2]
         
+        # update desired raw signature and trace
+        S0_des = self.X_des.T @ L @ self.X_des
+        tr_des = np.trace(S0_des)
+        self.S_des_norm = S0_des / tr_des
+        self.tr_des_raw = tr_des
+        # update pairwise edges and distances
+        self.pair_edges = [(i, j)
+                           for i in range(self.n)
+                           for j in range(i+1, self.n)]
+        self.pair_dist = [np.linalg.norm(self.X_des[i] - self.X_des[j])
+                          for i, j in self.pair_edges]
 
     def compute(self, points):
         X = np.array(points)   # shape (n,3)
