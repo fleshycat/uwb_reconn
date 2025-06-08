@@ -58,10 +58,10 @@ def launch_setup(context, *args, **kwargs):
     # gazebo world
     env = Environment(loader=FileSystemLoader(os.path.join(current_package_path, 'worlds')))
     jinja_world = env.get_template(f'{world_type}.world.jinja')
-    x_tag_position = np.random.uniform(-10, 10)  # Random tag position
-    y_tag_position = np.random.uniform(0, 15)
-    # x_tag_position = 0.0  # Random tag position
-    # y_tag_position = 0.0
+    # x_tag_position = np.random.uniform(-10, 10)  # Random tag position
+    # y_tag_position = np.random.uniform(0, 15)
+    x_tag_position = 0.0
+    y_tag_position = 10.0
     tag_position = np.array([x_tag_position, y_tag_position, 2])
     simulation_world = jinja_world.render(tag_id = 1, tag_pose = tag_position) 
     # simulation_world = jinja_world.render(tag_id = 1, tag_pose = [0, 0]) 
@@ -127,7 +127,7 @@ def launch_setup(context, *args, **kwargs):
         spawn_entity_node = Node(
             package='gazebo_ros',
             executable='spawn_entity.py',
-            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{agent_x}', '-y', f'{agent_y}', '-z', '0.12'],
+            arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{agent_x}', '-y', f'{agent_y}', '-z', '0.1'],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{-15 + 10*i }', '-y', f'{-15}' ],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ 3 * (-1)**i }', '-y', f'{3 * (-1 if i%3==0 else 1)}' ],
             # arguments=['-file', f'/tmp/model_{i}.sdf', '-entity', f'robot_{i}', '-x', f'{ -6 + 3*i }', '-y', f'{-25 +1*i}' ],
@@ -140,7 +140,7 @@ def launch_setup(context, *args, **kwargs):
         # build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
         cmd = [
             'env', 
-            'PX4_SIM_MODEL=gazebo-classic_iris',
+            'PX4_SIM_MODEL=gazebo-classic_typhoon_h480',
             f'{px4_src_path}/build/px4_sitl_default/bin/px4',
             '-i', f'{i}',
             '-d',
@@ -154,58 +154,6 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
         )
         drone_process_list.append(px4_process)
-        
-        drone_manager_node = Node(
-            package='drone_manager',
-            executable='drone_manager',
-            name=f'drone_manager{ i + 1 }',
-            parameters=[{'system_id': i + 1}],
-            #output='screen'
-        )
-        drone_process_list.append(drone_manager_node)
-        
-        start_mission_node = Node(
-            package='mission',
-            executable='start_mission_uwb_straight',
-            parameters=[{'system_id': i + 1}],
-            output='screen',
-        )
-        drone_process_list.append(start_mission_node)
-    
-    uwb_reconn = Node(
-        package='mission',
-        executable='uwb_reconnaissance',
-        name='uwb_reconn',
-        parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
-                     'formation_square_length': 4.0}],
-        output='screen'
-    )
-    
-    rviz_visualizer = Node(
-        package='rviz_visualizer',
-        executable='visualizer',
-        name='rviz_visualizer',
-        parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
-                     'real_tag_pos' : [x_tag_position, y_tag_position],
-                     'real_ref_agent_pos' : [ref_agent_x, ref_agent_y],
-                     }],
-        output='screen'
-    )
-
-    # rviz configuration
-    rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("uwb_sim"), "confs", "custom.rviz"]
-    )
-    
-    # rviz node for visualizing robot model
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="screen",
-        arguments=["-d", rviz_config_file],
-        parameters=[{'use_sim_time': True}],
-    )
 
     nodes_to_start = [
         px4_lat,
@@ -218,8 +166,6 @@ def launch_setup(context, *args, **kwargs):
         gazebo_node,
         *drone_process_list,
         # tag_pos_node,
-        rviz_visualizer,
-        rviz_node,
     ]
 
     return nodes_to_start
@@ -255,7 +201,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             'num_drone',
-            default_value='1',
+            default_value='4',
             description='Number of drone to spawn'
         )
     )
