@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rcl_interfaces.msg import SetParametersResult
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, \
     VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
@@ -31,14 +32,13 @@ import struct
 class DroneManager(Node):
     def __init__(self):
         super().__init__("drone_manager")
-
-        # --- ROS2 parameter ---
-        self.declare_parameter('system_id', 1)
+        self.drone_manager_delcare_parameters()
         self.system_id = self.get_parameter('system_id').get_parameter_value().integer_value
-        self.get_logger().info(f"Configure DroneManager {self.system_id}")
-
-        self.declare_parameter('system_id_list', [1, 2, 3, 4])
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
+        self.formation_side_length = self.get_parameter('formation_side_length').get_parameter_value().double_value
+        self.mission_zlevel = self.get_parameter('mission_zlevel').get_parameter_value().double_value
+
+        self.get_logger().info(f"Configure DroneManager {self.system_id}")
 
         # --- J-Fi Configuration ---
         self.declare_parameter('serial_port', '/dev/ttyUSB0')
@@ -93,27 +93,13 @@ class DroneManager(Node):
             f"{self.topic_prefix_manager}out/monitoring",
             qos_profile_sensor_data
         )
-        # self.particle_publisher = self.create_publisher(
-        #     PointCloud2,
-        #     f'{self.topic_prefix_manager}out/particle_cloud',
-        #     qos_profile_sensor_data
-        # )
-        # self.total_gradient_publisher = self.create_publisher(
-        #     TrajectorySetpointMsg,
-        #     f'{self.topic_prefix_manager}out/gradient',
-        #     qos_profile_sensor_data
-        # )
-        # Optional
+
         self.uwb_ranging_publisher = self.create_publisher(
             Ranging,
             f"{self.topic_prefix_manager}out/ranging",
             qos_profile_sensor_data
         )
-        # self.target_publisher = self.create_publisher(
-        #     TrajectorySetpointMsg,
-        #     f"{self.topic_prefix_manager}out/target",
-        #     qos_profile_sensor_data
-        # )
+
         self.vehicle_command_publisher = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu}in/vehicle_command', qos_profile_sensor_data)
 
         # --- Subscriber ---
@@ -147,41 +133,34 @@ class DroneManager(Node):
         self.ocm_msg = OffboardControlMode()
 
         # --- Potential Field ---
-        desired_formation = [
-            (0, 0, -self.mission_zlevel),
-            (6, 0, -self.mission_zlevel),
-            (6, 6, -self.mission_zlevel),
-            (0, 6, -self.mission_zlevel),
-        ]
-        self.f_formation = FormationForce(
-            desired_positions=desired_formation,
-            k_scale=1.0, k_pair=1.0, k_shape=2.0, k_z=2.0
-        )
-        self.tol = 1.5
-        self.f_repulsion = RepulsionForce(
-            n_agents=len(self.system_id_list),
-            c_rep=3.0, cutoff=3.0, sigma=1.5
-        )
-        self.f_target = TargetForce([0, 0], k_target=3.0)
-        length = np.linalg.norm(np.array(desired_formation[0]) - np.array(desired_formation[1]))
-        self.target_bound = np.sqrt(self.mission_zlevel**2 + length**2 / 2.0)
-        self.weight_table = [
-            (0, 1, 1),   # w_repulsion, w_target, w_formation
-            (4, 1, 0),   # not in target bound
-            (4, 1, 2),   # in target bound
-        ]
+        self.desired_formation = self.get_desired_formation(self.formation_side_length)
+        self.f_formation = FormationForce(desired_positions = self.desired_formation,
+                                        k_scale=    self.get_parameter("formation_k_scale").get_parameter_value().double_value,
+                                        k_pair=     self.get_parameter("formation_k_pair").get_parameter_value().double_value,
+                                        k_shape=    self.get_parameter("formation_k_shape").get_parameter_value().double_value,
+                                        k_z=        self.get_parameter("formation_k_z").get_parameter_value().double_value)
+        self.tol = self.get_parameter("formation_tolerance").get_parameter_value().double_value
+        self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
+                                        c_rep=  self.get_parameter("repulsion_c_rep").get_parameter_value().double_value,
+                                        cutoff= self.get_parameter("repulsion_cutoff").get_parameter_value().double_value,
+                                        sigma=  self.get_parameter("repulsion_sigma").get_parameter_value().double_value)
+        self.f_target = TargetForce([0,0], k_target= self.get_parameter("target_k").get_parameter_value().double_value)
+        self.target_bound = np.sqrt(self.mission_zlevel**2 + self.formation_side_length**2 / 2.0)
+        weight_table = self.get_parameter("weight_table").get_parameter_value().integer_array_value
+        self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
 
         # --- Particle Filter ---
-        self.num_particles = 1000
+        self.num_particles = self.get_parameter("num_particles").get_parameter_value().integer_value
         self.particle_filter = ParticleFilter(num_particles=self.num_particles)
-        self.target         = []
-        self.have_target    = False
-        self.uwb_data_list  = []
-        self.uwb_threshold  = 10.0
+        self.target = []
+        self.have_target = False
+        self.uwb_data_list = []
+        self.uwb_threshold = self.get_parameter("uwb_threshold").get_parameter_value().double_value
 
         # --- ModeHandler --- 
         self.mode_handler = ModeHandler()
         self.handle_flag = False
+        self.collection_step = 0
 
         # --- Timer setting ---
         self.timer_ocm = self.create_timer(0.1, self.timer_ocm_callback)           # 10 Hz
@@ -194,6 +173,100 @@ class DroneManager(Node):
         self.init_timestamp = self.get_clock().now().to_msg().sec
 
         self.initiate_drone_manager()
+
+    def drone_manager_delcare_parameters(self):
+        # Declare parameters for the drone manager
+        self.declare_parameter('system_id', 1)
+        self.declare_parameter('system_id_list', [1,2,3,4])
+        self.declare_parameter('formation_side_length', 6.0)
+        self.declare_parameter('mission_zlevel', 3.0)
+        # Formation parameters
+        self.declare_parameter("formation_k_scale", 2.0)
+        self.declare_parameter("formation_k_pair", 2.0)
+        self.declare_parameter("formation_k_shape", 4.0)
+        self.declare_parameter("formation_k_z", 2.0)
+        self.declare_parameter("formation_tolerance", 0.1)
+        # Repulsion and target parameters
+        self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
+        self.declare_parameter("repulsion_cutoff", 3.0)  # Cutoff distance for repulsion
+        self.declare_parameter("repulsion_sigma", 2.0)  # Sigma for repulsion force
+        # Target parameters
+        self.declare_parameter("target_k", 5.0)  # Target force constant
+        self.declare_parameter("weight_table", [0,1,1, 4,1,0, 4,1,2])  # Weights for repulsion, target, and formation
+        # Particle filter parameters
+        self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
+        self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
+
+    def set_parameters_callback(self, params):
+        result = SetParametersResult()
+        for param in params:
+            if param.name == 'system_id':
+                self.system_id = param.value
+                self.get_logger().info(f"System ID changed to {self.system_id}")
+            elif param.name == 'system_id_list':
+                self.system_id_list = param.value
+                self.get_logger().info(f"System ID list updated: {self.system_id_list}")
+            elif param.name == 'formation_side_length':
+                self.formation_side_length = param.value
+                self.desired_formation = self.get_desired_formation(self.formation_side_length)
+                self.f_formation.set_desired_formation(self.desired_formation)
+                self.get_logger().info(f"Formation side length set to {self.formation_side_length}")
+            elif param.name == 'mission_zlevel':
+                self.mission_zlevel = param.value
+                self.get_logger().info(f"Mission Z-level set to {self.mission_zlevel}")
+            elif param.name == 'formation_k_scale':
+                self.f_formation.k_scale = param.value
+                self.get_logger().info(f"Formation k_scale set to {self.f_formation.k_scale}")
+            elif param.name == 'formation_k_pair':
+                self.f_formation.k_pair = param.value
+                self.get_logger().info(f"Formation k_pair set to {self.f_formation.k_pair}")
+            elif param.name == 'formation_k_shape':
+                self.f_formation.k_shape = param.value
+                self.get_logger().info(f"Formation k_shape set to {self.f_formation.k_shape}")
+            elif param.name == 'formation_k_z':
+                self.f_formation.k_z = param.value
+                self.get_logger().info(f"Formation k_z set to {self.f_formation.k_z}")
+            elif param.name == 'formation_tolerance':   
+                self.tol = param.value
+                self.get_logger().info(f"Formation tolerance set to {self.tol}")
+            elif param.name == 'repulsion_c_rep':
+                self.f_repulsion.c_rep = param.value
+                self.get_logger().info(f"Repulsion c_rep set to {self.f_repulsion.c_rep}")
+            elif param.name == 'repulsion_cutoff':
+                self.f_repulsion.cutoff = param.value
+                self.get_logger().info(f"Repulsion cutoff set to {self.f_repulsion.cutoff}")
+            elif param.name == 'repulsion_sigma':
+                self.f_repulsion.sigma = param.value
+                self.get_logger().info(f"Repulsion sigma set to {self.f_repulsion.sigma}")
+            elif param.name == 'target_k':
+                self.f_target.k_target = param.value
+                self.get_logger().info(f"Target k set to {self.f_target.k_target}")
+            elif param.name == 'num_particles':
+                self.particle_filter.num_particles = param.value
+                self.get_logger().info(f"Number of particles set to {self.particle_filter.num_particles}")
+            elif param.name == 'uwb_threshold':
+                self.uwb_threshold = param.value
+                self.get_logger().info(f"UWB threshold set to {self.uwb_threshold} meters")
+            elif param.name == 'weight_table':
+                weight_table = param.value
+                self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
+                self.get_logger().info(f"Weight table updated: {self.weight_table}")
+        result.successful = True
+        return result
+    
+    def get_desired_formation(self, side_length):
+        n = len(self.system_id_list)
+        R = side_length / (2.0 * math.sin(math.pi / n))
+        desired_formation = []
+        for i in range(n):
+            theta = 2.0 * math.pi * i / n
+            x = R * math.cos(theta)
+            y = R * math.sin(theta)
+            z = -self.mission_zlevel
+            desired_formation.append((x, y, z))
+        msg = "Formation Desired Positions:\n" + "\n".join(f"  {pos}" for pos in desired_formation)
+        self.get_logger().info(msg)
+        return desired_formation
 
     # --------------------------
     #  J-Fi Methods
@@ -313,12 +386,6 @@ class DroneManager(Node):
                 self.global_path.pop(0)
                 self.get_logger().error("WayPoint Arrived")
 
-    # def timer_gradient_callback(self):
-    #     if self.mode != Mode.HAVE_TARGET:
-    #         return
-    #     else:
-    #         self.traj_setpoint_publisher.publish(self.direction)
-
     def timer_uwb_callback(self):
         # Create Ranging message
         uwb_pub_msg = Ranging()
@@ -365,7 +432,6 @@ class DroneManager(Node):
         
         # Publish the UWB message
         self.send_uwb_data(uwb_pub_msg)
-        # self.uwb_ranging_publisher.publish(uwb_pub_msg)
 
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f"{self.system_id}"] = uwb_pub_msg
@@ -526,21 +592,11 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
-        # direction = TrajectorySetpointMsg()
-        # direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
-        # self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
 
     def is_formation_converged(self, grad_norm):
-        # for value in self.agent_uwb_range_dic.values():
-        #     if value.seq == Mode.RETURN:
-        #         self.change_mode(Mode.RETURN)
-        #         return
         if grad_norm < self.tol:
             self.change_mode(Mode.CONVERGED)
-        # else:
-        #     if self.mode_handler.is_in_mode(Mode.CONVERGED):
-        #         self.change_mode(Mode.HAVE_TARGET)
         if all(v.seq == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
             self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
             if self.system_id == self.system_id_list[0]:
@@ -585,16 +641,6 @@ class DroneManager(Node):
         target_msg.position[2] = target_pos_llh[2]
 
         self.send_target_data(target_msg)
-        # self.target_publisher.publish(target_msg)
-
-    # def publish_particle_cloud(self, particles: np.ndarray):
-    #     header = std_msgs.Header()
-    #     header.frame_id = 'map'
-    #     header.stamp    = self.get_clock().now().to_msg()
-
-    #     points = [(float(x), float(y), 0.0) for x,y in particles]
-    #     cloud_msg = point_cloud2.create_cloud_xyz32(header, points)
-    #     self.particle_publisher.publish(cloud_msg)
     
     ## Mode Handlers ##
     def handle_COMPLETED(self):
@@ -666,9 +712,6 @@ class DroneManager(Node):
         setpoint.position = [
             float(next_pos[0]), float(next_pos[1]), float(next_pos[2])
         ]
-        # direction = TrajectorySetpointMsg()
-        # direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
-        # self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
 
         # If within 0.5m of home (0,0), switch to COMPLETED
@@ -725,9 +768,6 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
-        # direction = TrajectorySetpointMsg()
-        # direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
-        # self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
 
         if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
