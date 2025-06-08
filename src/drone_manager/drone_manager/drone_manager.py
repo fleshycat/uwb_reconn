@@ -177,7 +177,7 @@ class DroneManager(Node):
 
         # --- Timer setting ---
         self.timer_ocm = self.create_timer(0.1, self.timer_ocm_callback)                    # 10 Hz
-        self.timer_uwb = self.create_timer(0.02, self.timer_uwb_callback)                   # 50 Hz
+        self.timer_uwb = self.create_timer(0.04, self.timer_uwb_callback)                   # 25 Hz
         self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)    # 10 Hz
         self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)           # 25 Hz
         self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  #  1 Hz
