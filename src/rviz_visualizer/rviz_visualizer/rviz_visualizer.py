@@ -4,7 +4,6 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
-# from uwb_msgs.msg import RangingDiff, Ranging
 
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseArray, Pose, Point
