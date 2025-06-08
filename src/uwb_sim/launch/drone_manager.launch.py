@@ -22,7 +22,7 @@ def launch_setup(context, *args, **kwargs):
     drone_manager_node = Node(
         package='drone_manager',
         executable='drone_manager',
-        name='drone_manager',
+        name=f'drone_manager{system_id}',
         parameters=[{'system_id': int(system_id)}],
         output='screen'
     )
