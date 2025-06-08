@@ -147,17 +147,24 @@ class DroneManager(Node):
 
         # --- Potential Field ---
         self.desired_formation = self.get_desired_formation(self.formation_side_length)
-        self.f_formation = FormationForce(desired_positions = self.desired_formation,
-                                        k_scale=    self.get_parameter("formation_k_scale").get_parameter_value().double_value,
-                                        k_pair=     self.get_parameter("formation_k_pair").get_parameter_value().double_value,
-                                        k_shape=    self.get_parameter("formation_k_shape").get_parameter_value().double_value,
-                                        k_z=        self.get_parameter("formation_k_z").get_parameter_value().double_value)
+        self.f_formation = FormationForce(
+            desired_positions = self.desired_formation,
+            k_scale=    self.get_parameter("formation_k_scale").get_parameter_value().double_value,
+            k_pair=     self.get_parameter("formation_k_pair").get_parameter_value().double_value,
+            k_shape=    self.get_parameter("formation_k_shape").get_parameter_value().double_value,
+            k_z=        self.get_parameter("formation_k_z").get_parameter_value().double_value
+        )
         self.tol = self.get_parameter("formation_tolerance").get_parameter_value().double_value
-        self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
-                                        c_rep=  self.get_parameter("repulsion_c_rep").get_parameter_value().double_value,
-                                        cutoff= self.get_parameter("repulsion_cutoff").get_parameter_value().double_value,
-                                        sigma=  self.get_parameter("repulsion_sigma").get_parameter_value().double_value)
-        self.f_target = TargetForce([0,0], k_target= self.get_parameter("target_k").get_parameter_value().double_value)
+        self.f_repulsion = RepulsionForce(
+            n_agents=len(self.system_id_list),
+            c_rep=  self.get_parameter("repulsion_c_rep").get_parameter_value().double_value,
+            cutoff= self.get_parameter("repulsion_cutoff").get_parameter_value().double_value,
+            sigma=  self.get_parameter("repulsion_sigma").get_parameter_value().double_value
+        )
+        self.f_target = TargetForce(
+            [0,0],
+            k_target= self.get_parameter("target_k").get_parameter_value().double_value
+        )
         self.target_bound = np.sqrt(self.mission_zlevel**2 + self.formation_side_length**2 / 2.0)
         weight_table = self.get_parameter("weight_table").get_parameter_value().integer_array_value
         self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
@@ -213,13 +220,13 @@ class DroneManager(Node):
     def set_parameters_callback(self, params):
         result = SetParametersResult()
         for param in params:
-            if param.name == 'system_id':
-                self.system_id = param.value
-                self.get_logger().info(f"System ID changed to {self.system_id}")
-            elif param.name == 'system_id_list':
-                self.system_id_list = param.value
-                self.get_logger().info(f"System ID list updated: {self.system_id_list}")
-            elif param.name == 'formation_side_length':
+            # if param.name == 'system_id':
+            #     self.system_id = param.value
+            #     self.get_logger().info(f"System ID changed to {self.system_id}")
+            # elif param.name == 'system_id_list':
+            #     self.system_id_list = param.value
+            #     self.get_logger().info(f"System ID list updated: {self.system_id_list}")
+            if param.name == 'formation_side_length':
                 self.formation_side_length = param.value
                 self.desired_formation = self.get_desired_formation(self.formation_side_length)
                 self.f_formation.set_desired_formation(self.desired_formation)
@@ -435,15 +442,19 @@ class DroneManager(Node):
         ## It should run only when the mode is HAVE_TARGET ##
         if not self.mode_handler.is_in_mode(Mode.HAVE_TARGET) and not self.mode_handler.is_in_mode(Mode.CONVERGED):
             return
+
         targets = []
         for key, value in self.agent_target_dic.items():
             if value is not None:
-                ref_llh = [self.monitoring_msg.ref_lat,
-                   self.monitoring_msg.ref_lon,
-                   self.monitoring_msg.ref_alt]
+                ref_llh = [
+                    self.monitoring_msg.ref_lat,
+                    self.monitoring_msg.ref_lon,
+                    self.monitoring_msg.ref_alt
+                ]
                 target = LLH2NED([value.position[0], value.position[1], 0], ref_llh)
                 targets.append(target)
                 # self.get_logger().info(f"target:, {target}")
+
         if len(targets):
             self.particle_filter.inject_shared([[t[0], t[1]] for t in targets])
             for key in self.agent_target_dic:
@@ -465,6 +476,7 @@ class DroneManager(Node):
         ## It should run only when the mode is HAVE_TARGET ##
         if not self.mode_handler.is_in_mode(Mode.HAVE_TARGET) and not self.mode_handler.is_in_mode(Mode.CONVERGED):
             return
+
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
             idx = int(key)-1 
@@ -473,6 +485,7 @@ class DroneManager(Node):
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
                 value.anchor_pose.position.z
             ]
+            
         grad_formation = self.f_formation.compute(agents_pos)[self.system_id-1]
         ## Check if formation is converged ##
         # err1, err2, err3 = self.f_formation.get_error(agents_pos)

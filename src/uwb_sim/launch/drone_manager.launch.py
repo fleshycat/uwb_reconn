@@ -7,13 +7,14 @@ from launch.actions import ExecuteProcess, OpaqueFunction, IncludeLaunchDescript
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def launch_setup(context, *args, **kwargs):
+    # Drone manager launch configuration parameters
     system_id     = context.launch_configurations.get('system_id', '1')
+    system_id_list= context.launch_configurations.get('system_id_list', '[1,2,3,4]')
 
-    # J-Fi Settings
+    # J-Fi launch configuration parameters
     port_name     = context.launch_configurations.get('port_name', '/dev/ttyUSB0')
     baud_rate     = context.launch_configurations.get('baud_rate', '115200')
     component_id  = context.launch_configurations.get('component_id', '1')
-    system_id_list= context.launch_configurations.get('system_id_list', '[1,2,3,4]')
 
     # MicroXRCEAgent udp4 -p 8888
     xrce_agent_process = ExecuteProcess(
@@ -26,7 +27,10 @@ def launch_setup(context, *args, **kwargs):
         package='drone_manager',
         executable='drone_manager',
         name=f'drone_manager{system_id}',
-        parameters=[{'system_id': int(system_id)}],
+        parameters=[
+            {'system_id':      int(system_id)},
+            {'system_id_list': eval(system_id_list)},   # "[1,2,3,4]" → [1,2,3,4]
+        ],
         output='screen'
     )
 
@@ -53,7 +57,7 @@ def launch_setup(context, *args, **kwargs):
             {'baud_rate':       int(baud_rate)},
             {'system_id':       int(system_id)},
             {'component_id':    int(component_id)},
-            {'system_id_list':  eval(system_id_list)},  # "[1,2,3,4]" → [1,2,3,4]
+            {'system_id_list':  eval(system_id_list)},
         ]
     )
     
@@ -69,9 +73,9 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('system_id',      default_value='1',              description='Drone System ID'),
+        DeclareLaunchArgument('system_id_list', default_value='[1,2,3,4]',      description='All drone system IDs'),
         DeclareLaunchArgument('port_name',      default_value='/dev/ttyUSB0',   description='Serial port'),
         DeclareLaunchArgument('baud_rate',      default_value='115200',         description='Serial baudrate'),
         DeclareLaunchArgument('component_id',   default_value='1',              description='MAVLink component ID'),
-        DeclareLaunchArgument('system_id_list', default_value='[1,2,3,4]',      description='All drone system IDs'),
         OpaqueFunction(function=launch_setup)
     ])
