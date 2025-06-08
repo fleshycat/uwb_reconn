@@ -3,26 +3,26 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rcl_interfaces.msg import SetParametersResult
 
+# std_msgs
+from std_msgs.msg import Header, UInt8
+# px4_msgs
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, \
     VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, \
     OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, \
     VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
-
+# uwb_msgs
 from uwb_msgs.msg import Ranging
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
-
 ## only for simulation ##
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
-
-from std_msgs.msg import Header, UInt8
 
 from drone_manager.class_particle import ParticleFilter
 from drone_manager.formation import FormationForce
 from drone_manager.repulsion import RepulsionForce
 from drone_manager.target import TargetForce
-from drone_manager.jfi import JFiInterface
+# from drone_manager.jfi import JFiInterface
 from drone_manager.mode_handler import ModeHandler, Mode
 
 import math
@@ -40,31 +40,32 @@ class DroneManager(Node):
 
         self.get_logger().info(f"Configure DroneManager {self.system_id}")
 
-        # --- J-Fi Configuration ---
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
-        serial_port_name = self.get_parameter('serial_port').get_parameter_value().string_value
-        self.declare_parameter('baud_rate', 115200)
-        baudrate = self.get_parameter('baud_rate').get_parameter_value().integer_value
+        # # --- J-Fi Configuration ---
+        # self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        # serial_port_name = self.get_parameter('serial_port').get_parameter_value().string_value
+        # self.declare_parameter('baud_rate', 115200)
+        # baudrate = self.get_parameter('baud_rate').get_parameter_value().integer_value
 
-        # Create J-Fi Interface (receive callback: self._on_jfi_payload)
-        try:
-            self.jfi = JFiInterface(
-                port_name=serial_port_name,
-                baudrate=baudrate,
-                receive_callback=self._on_jfi_payload
-            )
-            self.get_logger().info(f"Opened J-Fi serial on {serial_port_name}@{baudrate}")
-        except RuntimeError as e:
-            self.get_logger().error(str(e))
-            return
+        # # Create J-Fi Interface (receive callback: self._on_jfi_payload)
+        # try:
+        #     self.jfi = JFiInterface(
+        #         port_name=serial_port_name,
+        #         baudrate=baudrate,
+        #         receive_callback=self._on_jfi_payload
+        #     )
+        #     self.get_logger().info(f"Opened J-Fi serial on {serial_port_name}@{baudrate}")
+        # except RuntimeError as e:
+        #     self.get_logger().error(str(e))
+        #     return
 
-        # J-Fi seq (0~255)
-        self.jfi_seq = 0
+        # # J-Fi seq (0~255)
+        # self.jfi_seq = 0
 
         # --- Topic prefix setting ---
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"
         self.topic_prefix_fmu     = f"drone{self.system_id}/fmu/"
         self.topic_prefix_uwb     = f"drone{self.system_id}/uwb/ranging"
+        self.topic_prefix_jfi     = f"drone{self.system_id}/jfi/"
 
         # --- Internal Status Variables ---
         self.monitoring_msg      = Monitoring()
@@ -81,7 +82,7 @@ class DroneManager(Node):
         self.ocm_publisher = self.create_publisher(
             OffboardControlMode,
             f"{self.topic_prefix_fmu}in/offboard_control_mode",
-            qos_profile_sensor_data
+            10
         )
         self.traj_setpoint_publisher = self.create_publisher(
             TrajectorySetpointMsg,
@@ -93,14 +94,17 @@ class DroneManager(Node):
             f"{self.topic_prefix_manager}out/monitoring",
             qos_profile_sensor_data
         )
-
+        self.vehicle_command_publisher = self.create_publisher(
+            VehicleCommandMsg, 
+            f'{self.topic_prefix_fmu}in/vehicle_command',
+            10
+        )
+        # J-Fi Publisher
         self.uwb_ranging_publisher = self.create_publisher(
             Ranging,
-            f"{self.topic_prefix_manager}out/ranging",
-            qos_profile_sensor_data
+            f"{self.topic_prefix_jfi}in/ranging",
+            10
         )
-
-        self.vehicle_command_publisher = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu}in/vehicle_command', qos_profile_sensor_data)
 
         # --- Subscriber ---
         self.uwb_subscriber = self.create_subscription(
@@ -127,7 +131,13 @@ class DroneManager(Node):
             self.global_path_callback,
             10
         )
-        self.mode_change_subscriber = self.create_subscription(UInt8, f'{self.topic_prefix_manager}in/mode_change', self.mode_change_callback, qos_profile_sensor_data)
+        self.mode_change_subscriber = self.create_subscription(
+            UInt8,
+            f'{self.topic_prefix_manager}in/mode_change',
+            self.mode_change_callback,
+            qos_profile_sensor_data
+        )
+        
         self.add_on_set_parameters_callback(self.set_parameters_callback)
         
         # --- OCM Msg ---
@@ -269,95 +279,95 @@ class DroneManager(Node):
         self.get_logger().info(msg)
         return desired_formation
 
-    # --------------------------
-    #  J-Fi Methods
-    # --------------------------
-    def send_uwb_data(self, uwb_pub_msg: Ranging):
-        """
-            Payload format for UWB ranging message:
-          - B: system_id (uint8)
-          - i: range (int32)
-          - B: MODE  (uint8)
-          - d*3: pos_x, pos_y, pos_z (double*3)
-          - d*3: ori_x, ori_y, ori_z (double*3)
-          - f: rss (float32)
-          - f: error_estimation (float32)
-        """
-        fmt = '<B i B d d d d d d f f'
-        payload = struct.pack(
-            fmt,
-            uwb_pub_msg.anchor_id,                  # uint8
-            uwb_pub_msg.range,                      # int32
-            uwb_pub_msg.seq,                        # uint8
-            uwb_pub_msg.anchor_pose.position.x,     # double
-            uwb_pub_msg.anchor_pose.position.y,     # double
-            uwb_pub_msg.anchor_pose.position.z,     # double
-            uwb_pub_msg.anchor_pose.orientation.x,  # double
-            uwb_pub_msg.anchor_pose.orientation.y,  # double
-            uwb_pub_msg.anchor_pose.orientation.z,  # double
-            uwb_pub_msg.rss,                        # float32
-            uwb_pub_msg.error_estimation            # float32
-        )
-        # Create a JFiProtocol packet
-        self.jfi_seq = (self.jfi_seq + 1) & 0xFF
-        self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
+    # # --------------------------
+    # #  J-Fi Methods
+    # # --------------------------
+    # def send_uwb_data(self, uwb_pub_msg: Ranging):
+    #     """
+    #         Payload format for UWB ranging message:
+    #       - B: system_id (uint8)
+    #       - i: range (int32)
+    #       - B: MODE  (uint8)
+    #       - d*3: pos_x, pos_y, pos_z (double*3)
+    #       - d*3: ori_x, ori_y, ori_z (double*3)
+    #       - f: rss (float32)
+    #       - f: error_estimation (float32)
+    #     """
+    #     fmt = '<B i B d d d d d d f f'
+    #     payload = struct.pack(
+    #         fmt,
+    #         uwb_pub_msg.anchor_id,                  # uint8
+    #         uwb_pub_msg.range,                      # int32
+    #         uwb_pub_msg.seq,                        # uint8
+    #         uwb_pub_msg.anchor_pose.position.x,     # double
+    #         uwb_pub_msg.anchor_pose.position.y,     # double
+    #         uwb_pub_msg.anchor_pose.position.z,     # double
+    #         uwb_pub_msg.anchor_pose.orientation.x,  # double
+    #         uwb_pub_msg.anchor_pose.orientation.y,  # double
+    #         uwb_pub_msg.anchor_pose.orientation.z,  # double
+    #         uwb_pub_msg.rss,                        # float32
+    #         uwb_pub_msg.error_estimation            # float32
+    #     )
+    #     # Create a JFiProtocol packet
+    #     self.jfi_seq = (self.jfi_seq + 1) & 0xFF
+    #     self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
 
-    def send_target_data(self, target_msg: TrajectorySetpointMsg):
-        """
-            Payload format for J-Fi target message:
-          - d*3: position_x, position_y, position_z (double*3)
-        """
-        fmt = '<d d d'
-        payload = struct.pack(
-            fmt,
-            target_msg.position[0],  # double
-            target_msg.position[1],  # double
-            target_msg.position[2]   # double
-        )
+    # def send_target_data(self, target_msg: TrajectorySetpointMsg):
+    #     """
+    #         Payload format for J-Fi target message:
+    #       - d*3: position_x, position_y, position_z (double*3)
+    #     """
+    #     fmt = '<d d d'
+    #     payload = struct.pack(
+    #         fmt,
+    #         target_msg.position[0],  # double
+    #         target_msg.position[1],  # double
+    #         target_msg.position[2]   # double
+    #     )
 
-        # Create a JFiProtocol packet
-        self.jfi_seq = (self.jfi_seq + 1) & 0xFF
-        self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
+    #     # Create a JFiProtocol packet
+    #     self.jfi_seq = (self.jfi_seq + 1) & 0xFF
+    #     self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
 
-    def _on_jfi_payload(self, payload: bytes, seq_jfi: int, sid: int):
-        if len(payload) == 62:
-            # UWB payload: '<B i B d d d d d d f f'
-            anchor_id, range, mode, \
-            posx, posy, posz, \
-            orix, oriy, oriz, \
-            rss, err = struct.unpack('<B i B d d d d d d f f', payload)
+    # def _on_jfi_payload(self, payload: bytes, seq_jfi: int, sid: int):
+    #     if len(payload) == 62:
+    #         # UWB payload: '<B i B d d d d d d f f'
+    #         anchor_id, range, mode, \
+    #         posx, posy, posz, \
+    #         orix, oriy, oriz, \
+    #         rss, err = struct.unpack('<B i B d d d d d d f f', payload)
 
-            uwb_msg = Ranging()
-            uwb_msg.header.stamp = self.get_clock().now().to_msg()
-            uwb_msg.header.frame_id = "map"
-            uwb_msg.anchor_id = anchor_id
-            uwb_msg.range = range
-            uwb_msg.seq = mode
-            uwb_msg.anchor_pose.position.x = posx
-            uwb_msg.anchor_pose.position.y = posy
-            uwb_msg.anchor_pose.position.z = posz
-            uwb_msg.anchor_pose.orientation.x = orix
-            uwb_msg.anchor_pose.orientation.y = oriy
-            uwb_msg.anchor_pose.orientation.z = oriz
-            uwb_msg.rss = rss
-            uwb_msg.error_estimation = err
+    #         uwb_msg = Ranging()
+    #         uwb_msg.header.stamp = self.get_clock().now().to_msg()
+    #         uwb_msg.header.frame_id = "map"
+    #         uwb_msg.anchor_id = anchor_id
+    #         uwb_msg.range = range
+    #         uwb_msg.seq = mode
+    #         uwb_msg.anchor_pose.position.x = posx
+    #         uwb_msg.anchor_pose.position.y = posy
+    #         uwb_msg.anchor_pose.position.z = posz
+    #         uwb_msg.anchor_pose.orientation.x = orix
+    #         uwb_msg.anchor_pose.orientation.y = oriy
+    #         uwb_msg.anchor_pose.orientation.z = oriz
+    #         uwb_msg.rss = rss
+    #         uwb_msg.error_estimation = err
 
-            # Update the agent UWB range dictionary
-            self.agent_uwb_range_dic[f"{sid}"] = uwb_msg
+    #         # Update the agent UWB range dictionary
+    #         self.agent_uwb_range_dic[f"{sid}"] = uwb_msg
 
-        elif len(payload) == 24:
-            # Target payload: '<d d d'
-            lat, lon, alt = struct.unpack('<d d d', payload)
-            target_msg = TrajectorySetpointMsg()
-            target_msg.position[0] = lat
-            target_msg.position[1] = lon
-            target_msg.position[2] = alt
+    #     elif len(payload) == 24:
+    #         # Target payload: '<d d d'
+    #         lat, lon, alt = struct.unpack('<d d d', payload)
+    #         target_msg = TrajectorySetpointMsg()
+    #         target_msg.position[0] = lat
+    #         target_msg.position[1] = lon
+    #         target_msg.position[2] = alt
 
-            # Update the agent target dictionary
-            self.agent_target_dic[f"{sid}"] = target_msg
+    #         # Update the agent target dictionary
+    #         self.agent_target_dic[f"{sid}"] = target_msg
 
-        else:
-            self.get_logger().warn(f"Undefined J-Fi payload length={len(payload)} (SID={sid})")
+    #     else:
+    #         self.get_logger().warn(f"Undefined J-Fi payload length={len(payload)} (SID={sid})")
     
     def initiate_drone_manager(self):
         self.change_mode(Mode.QHAC)
@@ -432,7 +442,7 @@ class DroneManager(Node):
         uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
         
         # Publish the UWB message
-        self.send_uwb_data(uwb_pub_msg)
+        # self.send_uwb_data(uwb_pub_msg)
 
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f"{self.system_id}"] = uwb_pub_msg
@@ -641,7 +651,7 @@ class DroneManager(Node):
         target_msg.position[1] = target_pos_llh[1]
         target_msg.position[2] = target_pos_llh[2]
 
-        self.send_target_data(target_msg)
+        # self.send_target_data(target_msg)
     
     ## Mode Handlers ##
     def handle_COMPLETED(self):
