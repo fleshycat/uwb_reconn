@@ -201,18 +201,18 @@ class DroneManager(Node):
         self.declare_parameter('formation_side_length', 6.0)
         self.declare_parameter('mission_zlevel', 3.0)
         # Formation parameters
-        self.declare_parameter("formation_k_scale", 2.0)
-        self.declare_parameter("formation_k_pair", 2.0)
+        self.declare_parameter("formation_k_scale", 0.0)
+        self.declare_parameter("formation_k_pair", 4.0)
         self.declare_parameter("formation_k_shape", 4.0)
-        self.declare_parameter("formation_k_z", 2.0)
-        self.declare_parameter("formation_tolerance", 0.1)
+        self.declare_parameter("formation_k_z", 4.0)
+        self.declare_parameter("formation_tolerance", 1.5)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
-        self.declare_parameter("repulsion_cutoff", 3.0)  # Cutoff distance for repulsion
-        self.declare_parameter("repulsion_sigma", 2.0)  # Sigma for repulsion force
+        self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
+        self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
-        self.declare_parameter("target_k", 5.0)  # Target force constant
-        self.declare_parameter("weight_table", [0,1,1, 4,1,0, 4,1,2])  # Weights for repulsion, target, and formation
+        self.declare_parameter("target_k", 2.0)  # Target force constant
+        self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
         self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
@@ -220,12 +220,6 @@ class DroneManager(Node):
     def set_parameters_callback(self, params):
         result = SetParametersResult()
         for param in params:
-            # if param.name == 'system_id':
-            #     self.system_id = param.value
-            #     self.get_logger().info(f"System ID changed to {self.system_id}")
-            # elif param.name == 'system_id_list':
-            #     self.system_id_list = param.value
-            #     self.get_logger().info(f"System ID list updated: {self.system_id_list}")
             if param.name == 'formation_side_length':
                 self.formation_side_length = param.value
                 self.desired_formation = self.get_desired_formation(self.formation_side_length)
