@@ -7,10 +7,13 @@ from launch.actions import ExecuteProcess, OpaqueFunction, IncludeLaunchDescript
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def launch_setup(context, *args, **kwargs):
-    do_record = context.launch_configurations.get('record', 'false').lower() in ('true', '1')
-    
-    # System ID for the drone
-    system_id = context.launch_configurations.get('system_id', '1')
+    system_id     = context.launch_configurations.get('system_id', '1')
+
+    # J-Fi Settings
+    port_name     = context.launch_configurations.get('port_name', '/dev/ttyUSB0')
+    baud_rate     = context.launch_configurations.get('baud_rate', '115200')
+    component_id  = context.launch_configurations.get('component_id', '1')
+    system_id_list= context.launch_configurations.get('system_id_list', '[1,2,3,4]')
 
     # MicroXRCEAgent udp4 -p 8888
     xrce_agent_process = ExecuteProcess(
@@ -38,40 +41,37 @@ def launch_setup(context, *args, **kwargs):
         ),
         launch_arguments={'system_id': system_id}.items()
     )
+
+    # J-Fi SerialCommNode
+    serial_comm = Node(
+        package='jfi_comm',
+        executable='serial_comm_node',
+        name=f'serial_comm_node{system_id}',
+        output='screen',
+        parameters=[
+            {'port_name':       port_name},
+            {'baud_rate':       int(baud_rate)},
+            {'system_id':       int(system_id)},
+            {'component_id':    int(component_id)},
+            {'system_id_list':  eval(system_id_list)},  # "[1,2,3,4]" → [1,2,3,4]
+        ]
+    )
     
     nodes_to_start = [
         xrce_agent_process,
         drone_manager_node,
         linktrack_launch,
+        serial_comm,
     ]
-
-    if do_record:
-        ranging_topic = f'/drone{system_id}/manager/out/ranging'
-        monitoring_topic = f'/drone{system_id}/manager/out/monitoring'
-        setpoint_topic = f'/drone{system_id}/fmu/in/trajectory_setpoint'
-        bag_record = ExecuteProcess(
-            cmd=[
-                'ros2', 'bag', 'record',
-                ranging_topic,
-                monitoring_topic,
-                setpoint_topic,
-            ],
-            output='screen',
-        )
-        nodes_to_start.append(bag_record)
 
     return nodes_to_start
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'record',
-            default_value='false',
-        ),
-        DeclareLaunchArgument(
-            'system_id',
-            default_value='1',
-            description='Drone System ID'
-        ),
+        DeclareLaunchArgument('system_id',      default_value='1',              description='Drone System ID'),
+        DeclareLaunchArgument('port_name',      default_value='/dev/ttyUSB0',   description='Serial port'),
+        DeclareLaunchArgument('baud_rate',      default_value='115200',         description='Serial baudrate'),
+        DeclareLaunchArgument('component_id',   default_value='1',              description='MAVLink component ID'),
+        DeclareLaunchArgument('system_id_list', default_value='[1,2,3,4]',      description='All drone system IDs'),
         OpaqueFunction(function=launch_setup)
     ])
