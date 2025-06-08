@@ -134,13 +134,13 @@ class DroneManager(Node):
         self.declare_parameter("formation_k_pair", 4.0)
         self.declare_parameter("formation_k_shape", 4.0)
         self.declare_parameter("formation_k_z", 4.0)
-        self.declare_parameter("formation_tolerance", 1.5)
+        self.declare_parameter("formation_tolerance", 0.1)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
         self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
         self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
-        self.declare_parameter("target_k", 2.0)  # Target force constant
+        self.declare_parameter("target_k", 3.0)  # Target force constant
         self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
         self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
@@ -149,6 +149,10 @@ class DroneManager(Node):
     def set_parameters_callback(self, params):
         result = SetParametersResult()
         for param in params:
+            if param.name == 'system_id_list':
+                self.system_id_list = param.value
+                self.get_logger().info(f"System ID List updated: {self.system_id_list}")
+                self.update_agents_list()
             if param.name == 'formation_side_length':
                 self.formation_side_length = param.value
                 self.desired_formation = self.get_desired_formation(self.formation_side_length)
@@ -198,6 +202,16 @@ class DroneManager(Node):
         result.successful = True
         return result
     
+    def update_agents_list(self):
+        self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
+        self.desired_formation = self.get_desired_formation(self.formation_side_length)
+        self.f_formation.set_desired_formation(self.desired_formation)
+        self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
+        self.f_repulsion = RepulsionForce(n_agents=len(self.system_id_list),
+                                        c_rep=  self.get_parameter("repulsion_c_rep").get_parameter_value().double_value,
+                                        cutoff= self.get_parameter("repulsion_cutoff").get_parameter_value().double_value,
+                                        sigma=  self.get_parameter("repulsion_sigma").get_parameter_value().double_value)
+
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
         R = side_length / (2.0 * math.sin(math.pi / n))
@@ -272,7 +286,7 @@ class DroneManager(Node):
 
     #### Mission Progress ####
     def timer_mission_callback(self):
-        if len(self.takeoff_offset_dic) != 4:
+        if len(self.takeoff_offset_dic) != len(self.system_id_list):
             self.calculate_takeoff_offset()
             return
         self.update_uwb_data_list()
@@ -405,7 +419,7 @@ class DroneManager(Node):
             - w_target    * grad_target
         )
         grad_norm = np.linalg.norm(total_grad)
-        self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
+        # self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
         self.is_formation_converged(grad_norm)
         total_grad = np.nan_to_num(total_grad)
         result_direc = self.set_direction(total_grad)
@@ -417,7 +431,7 @@ class DroneManager(Node):
                 self.monitoring_msg.pos_y,
                 self.monitoring_msg.pos_z,
                 ])
-        dt = 0.04
+        dt = 0.1
         next_pos = current_pos + dir_safe * speed_safe * dt
         next_pos[2] = min(next_pos[2], -0.1)
         setpoint = TrajectorySetpointMsg()
@@ -425,12 +439,17 @@ class DroneManager(Node):
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
         direction = TrajectorySetpointMsg()
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
+        dx = self.target[0] - self.monitoring_msg.pos_x
+        dy = self.target[1] - self.monitoring_msg.pos_y
+        desired_yaw = math.atan2(dy, dx)
+        setpoint.yaw = float(desired_yaw)
         self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
 
     def is_formation_converged(self, grad_norm):
         if grad_norm < self.tol:
-            self.change_mode(Mode.CONVERGED)
+            pass
+            # self.change_mode(Mode.CONVERGED)
         if all(v.error_estimation == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
             self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
             if self.system_id == self.system_id_list[0]:

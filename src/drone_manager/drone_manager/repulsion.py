@@ -10,7 +10,7 @@ class RepulsionForce:
         self.c_rep = c_rep
         self.cutoff = cutoff
         self.sigma = sigma
-
+        
     def compute(self, points):
         # points: list of objects with .pos = (x,y,z)
         X = np.array(points)  # shape (n,3)
