@@ -140,7 +140,7 @@ def launch_setup(context, *args, **kwargs):
         # build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
         cmd = [
             'env', 
-            'PX4_SIM_MODEL=gazebo-classic_iris',
+            'PX4_SIM_MODEL=gazebo-classic_typhoon_h480',
             f'{px4_src_path}/build/px4_sitl_default/bin/px4',
             '-i', f'{i}',
             '-d',
