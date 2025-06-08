@@ -46,15 +46,15 @@ def launch_setup(context, *args, **kwargs):
     ]
 
     if do_record:
-        uwb_sensor_topic = f'/drone{system_id}/nlink_linktrack_nodeframe2'
         ranging_topic = f'/drone{system_id}/manager/out/ranging'
         monitoring_topic = f'/drone{system_id}/manager/out/monitoring'
+        setpoint_topic = f'/drone{system_id}/fmu/in/trajectory_setpoint'
         bag_record = ExecuteProcess(
             cmd=[
                 'ros2', 'bag', 'record',
-                uwb_sensor_topic,
                 ranging_topic,
                 monitoring_topic,
+                setpoint_topic,
             ],
             output='screen',
         )
