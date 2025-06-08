@@ -128,7 +128,8 @@ class DroneManager(Node):
             10
         )
         self.mode_change_subscriber = self.create_subscription(UInt8, f'{self.topic_prefix_manager}in/mode_change', self.mode_change_callback, qos_profile_sensor_data)
-
+        self.add_on_set_parameters_callback(self.set_parameters_callback)
+        
         # --- OCM Msg ---
         self.ocm_msg = OffboardControlMode()
 
