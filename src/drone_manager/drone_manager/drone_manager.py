@@ -22,7 +22,6 @@ from drone_manager.class_particle import ParticleFilter
 from drone_manager.formation import FormationForce
 from drone_manager.repulsion import RepulsionForce
 from drone_manager.target import TargetForce
-# from drone_manager.jfi import JFiInterface
 from drone_manager.mode_handler import ModeHandler, Mode
 
 import math
@@ -39,27 +38,6 @@ class DroneManager(Node):
         self.mission_zlevel = self.get_parameter('mission_zlevel').get_parameter_value().double_value
 
         self.get_logger().info(f"Configure DroneManager {self.system_id}")
-
-        # # --- J-Fi Configuration ---
-        # self.declare_parameter('serial_port', '/dev/ttyUSB0')
-        # serial_port_name = self.get_parameter('serial_port').get_parameter_value().string_value
-        # self.declare_parameter('baud_rate', 115200)
-        # baudrate = self.get_parameter('baud_rate').get_parameter_value().integer_value
-
-        # # Create J-Fi Interface (receive callback: self._on_jfi_payload)
-        # try:
-        #     self.jfi = JFiInterface(
-        #         port_name=serial_port_name,
-        #         baudrate=baudrate,
-        #         receive_callback=self._on_jfi_payload
-        #     )
-        #     self.get_logger().info(f"Opened J-Fi serial on {serial_port_name}@{baudrate}")
-        # except RuntimeError as e:
-        #     self.get_logger().error(str(e))
-        #     return
-
-        # # J-Fi seq (0~255)
-        # self.jfi_seq = 0
 
         # --- Topic prefix setting ---
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"
@@ -103,7 +81,12 @@ class DroneManager(Node):
         self.uwb_ranging_publisher = self.create_publisher(
             Ranging,
             f"{self.topic_prefix_jfi}in/ranging",
-            10
+            qos_profile_sensor_data
+        )
+        self.target_publisher = self.create_publisher(
+            TrajectorySetpointMsg,
+            f"{self.topic_prefix_jfi}in/target",
+            qos_profile_sensor_data
         )
 
         # --- Subscriber ---
@@ -137,6 +120,25 @@ class DroneManager(Node):
             self.mode_change_callback,
             qos_profile_sensor_data
         )
+        # J-Fi Subscriber
+        self.agent_uwb_range_subscribers = [
+            self.create_subscription(
+                Ranging,
+                f'{self.topic_prefix_jfi}out/drone{i}/ranging',
+                self.make_uwb_range_callback(i),
+                qos_profile_sensor_data
+            )
+            for i in self.system_id_list if i != self.system_id
+        ]
+        self.agent_target_subscribers = [
+            self.create_subscription(
+                TrajectorySetpointMsg,
+                f'{self.topic_prefix_jfi}out/drone{i}/target',
+                self.make_target_callback(i),
+                qos_profile_sensor_data
+            )
+            for i in self.system_id_list if i != self.system_id
+        ]
         
         self.add_on_set_parameters_callback(self.set_parameters_callback)
         
@@ -174,11 +176,11 @@ class DroneManager(Node):
         self.collection_step = 0
 
         # --- Timer setting ---
-        self.timer_ocm = self.create_timer(0.1, self.timer_ocm_callback)           # 10 Hz
-        self.timer_uwb = self.create_timer(0.02, self.timer_uwb_callback)          # 50 Hz
-        self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)  # 10 Hz
-        self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)  # 25 Hz
-        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  # 1 Hz
+        self.timer_ocm = self.create_timer(0.1, self.timer_ocm_callback)                    # 10 Hz
+        self.timer_uwb = self.create_timer(0.02, self.timer_uwb_callback)                   # 50 Hz
+        self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)    # 10 Hz
+        self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)           # 25 Hz
+        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  #  1 Hz
 
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
@@ -279,96 +281,6 @@ class DroneManager(Node):
         self.get_logger().info(msg)
         return desired_formation
 
-    # # --------------------------
-    # #  J-Fi Methods
-    # # --------------------------
-    # def send_uwb_data(self, uwb_pub_msg: Ranging):
-    #     """
-    #         Payload format for UWB ranging message:
-    #       - B: system_id (uint8)
-    #       - i: range (int32)
-    #       - B: MODE  (uint8)
-    #       - d*3: pos_x, pos_y, pos_z (double*3)
-    #       - d*3: ori_x, ori_y, ori_z (double*3)
-    #       - f: rss (float32)
-    #       - f: error_estimation (float32)
-    #     """
-    #     fmt = '<B i B d d d d d d f f'
-    #     payload = struct.pack(
-    #         fmt,
-    #         uwb_pub_msg.anchor_id,                  # uint8
-    #         uwb_pub_msg.range,                      # int32
-    #         uwb_pub_msg.seq,                        # uint8
-    #         uwb_pub_msg.anchor_pose.position.x,     # double
-    #         uwb_pub_msg.anchor_pose.position.y,     # double
-    #         uwb_pub_msg.anchor_pose.position.z,     # double
-    #         uwb_pub_msg.anchor_pose.orientation.x,  # double
-    #         uwb_pub_msg.anchor_pose.orientation.y,  # double
-    #         uwb_pub_msg.anchor_pose.orientation.z,  # double
-    #         uwb_pub_msg.rss,                        # float32
-    #         uwb_pub_msg.error_estimation            # float32
-    #     )
-    #     # Create a JFiProtocol packet
-    #     self.jfi_seq = (self.jfi_seq + 1) & 0xFF
-    #     self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
-
-    # def send_target_data(self, target_msg: TrajectorySetpointMsg):
-    #     """
-    #         Payload format for J-Fi target message:
-    #       - d*3: position_x, position_y, position_z (double*3)
-    #     """
-    #     fmt = '<d d d'
-    #     payload = struct.pack(
-    #         fmt,
-    #         target_msg.position[0],  # double
-    #         target_msg.position[1],  # double
-    #         target_msg.position[2]   # double
-    #     )
-
-    #     # Create a JFiProtocol packet
-    #     self.jfi_seq = (self.jfi_seq + 1) & 0xFF
-    #     self.jfi.send_packet(payload, seq=self.jfi_seq, sid=self.system_id)
-
-    # def _on_jfi_payload(self, payload: bytes, seq_jfi: int, sid: int):
-    #     if len(payload) == 62:
-    #         # UWB payload: '<B i B d d d d d d f f'
-    #         anchor_id, range, mode, \
-    #         posx, posy, posz, \
-    #         orix, oriy, oriz, \
-    #         rss, err = struct.unpack('<B i B d d d d d d f f', payload)
-
-    #         uwb_msg = Ranging()
-    #         uwb_msg.header.stamp = self.get_clock().now().to_msg()
-    #         uwb_msg.header.frame_id = "map"
-    #         uwb_msg.anchor_id = anchor_id
-    #         uwb_msg.range = range
-    #         uwb_msg.seq = mode
-    #         uwb_msg.anchor_pose.position.x = posx
-    #         uwb_msg.anchor_pose.position.y = posy
-    #         uwb_msg.anchor_pose.position.z = posz
-    #         uwb_msg.anchor_pose.orientation.x = orix
-    #         uwb_msg.anchor_pose.orientation.y = oriy
-    #         uwb_msg.anchor_pose.orientation.z = oriz
-    #         uwb_msg.rss = rss
-    #         uwb_msg.error_estimation = err
-
-    #         # Update the agent UWB range dictionary
-    #         self.agent_uwb_range_dic[f"{sid}"] = uwb_msg
-
-    #     elif len(payload) == 24:
-    #         # Target payload: '<d d d'
-    #         lat, lon, alt = struct.unpack('<d d d', payload)
-    #         target_msg = TrajectorySetpointMsg()
-    #         target_msg.position[0] = lat
-    #         target_msg.position[1] = lon
-    #         target_msg.position[2] = alt
-
-    #         # Update the agent target dictionary
-    #         self.agent_target_dic[f"{sid}"] = target_msg
-
-    #     else:
-    #         self.get_logger().warn(f"Undefined J-Fi payload length={len(payload)} (SID={sid})")
-    
     def initiate_drone_manager(self):
         self.change_mode(Mode.QHAC)
         self.change_ocm_msg_position()
@@ -441,11 +353,11 @@ class DroneManager(Node):
         uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
         uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
         
-        # Publish the UWB message
-        # self.send_uwb_data(uwb_pub_msg)
-
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f"{self.system_id}"] = uwb_pub_msg
+
+        # Publish the UWB message
+        self.uwb_ranging_publisher.publish(uwb_pub_msg)
 
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
@@ -636,6 +548,19 @@ class DroneManager(Node):
         if norm > 1e-8:
             return vec / norm
 
+    ## Make and return callback
+    def make_uwb_range_callback(self, sys_id):
+        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} UWB Range Subscriber")
+        def callback(msg):
+            self.agent_uwb_range_dic[f'{sys_id}'] = msg
+        return callback
+    
+    def make_target_callback(self, sys_id):
+        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
+        def callback(msg):
+            self.agent_target_dic[f'{sys_id}'] = msg
+        return callback
+
     ## Publisher ##
     def publish_target(self):
         target_msg = TrajectorySetpointMsg()
@@ -651,7 +576,7 @@ class DroneManager(Node):
         target_msg.position[1] = target_pos_llh[1]
         target_msg.position[2] = target_pos_llh[2]
 
-        # self.send_target_data(target_msg)
+        self.target_publisher.publish(target_msg)
     
     ## Mode Handlers ##
     def handle_COMPLETED(self):
