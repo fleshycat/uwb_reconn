@@ -89,7 +89,7 @@ class DroneManager(Node):
                                         cutoff= self.get_parameter("repulsion_cutoff").get_parameter_value().double_value,
                                         sigma=  self.get_parameter("repulsion_sigma").get_parameter_value().double_value)
         self.f_target = TargetForce([0,0], k_target= self.get_parameter("target_k").get_parameter_value().double_value)
-        self.target_bound = np.sqrt(self.mission_zlevel**2 + self.formation_side_length**2 / 2.0)
+        self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
         weight_table = self.get_parameter("weight_table").get_parameter_value().integer_array_value
         self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
         
@@ -115,7 +115,7 @@ class DroneManager(Node):
         self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
         timer_period_mission = 0.04 # 25hz
         self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
-        timer_period_monitoring = 0.02 # 50hz
+        timer_period_monitoring = 1 # 1hz
         self.timer_monitoring = self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
         
         self.gcs_timestamp = Header()
@@ -128,20 +128,20 @@ class DroneManager(Node):
         self.declare_parameter('system_id', 1)
         self.declare_parameter('system_id_list', [1,2,3,4])
         self.declare_parameter('formation_side_length', 6.0)
-        self.declare_parameter('mission_zlevel', 3.0)
+        self.declare_parameter('mission_zlevel', 5.0)
         # Formation parameters
-        self.declare_parameter("formation_k_scale", 2.0)
-        self.declare_parameter("formation_k_pair", 2.0)
+        self.declare_parameter("formation_k_scale", 0.0)
+        self.declare_parameter("formation_k_pair", 4.0)
         self.declare_parameter("formation_k_shape", 4.0)
-        self.declare_parameter("formation_k_z", 2.0)
-        self.declare_parameter("formation_tolerance", 0.1)
+        self.declare_parameter("formation_k_z", 4.0)
+        self.declare_parameter("formation_tolerance", 1.5)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
-        self.declare_parameter("repulsion_cutoff", 3.0)  # Cutoff distance for repulsion
-        self.declare_parameter("repulsion_sigma", 2.0)  # Sigma for repulsion force
+        self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
+        self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
-        self.declare_parameter("target_k", 3.0)  # Target force constant
-        self.declare_parameter("weight_table", [0,1,1, 4,1,0, 4,1,2])  # Weights for repulsion, target, and formation
+        self.declare_parameter("target_k", 2.0)  # Target force constant
+        self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
         self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
@@ -149,17 +149,12 @@ class DroneManager(Node):
     def set_parameters_callback(self, params):
         result = SetParametersResult()
         for param in params:
-            if param.name == 'system_id':
-                self.system_id = param.value
-                self.get_logger().info(f"System ID changed to {self.system_id}")
-            elif param.name == 'system_id_list':
-                self.system_id_list = param.value
-                self.get_logger().info(f"System ID list updated: {self.system_id_list}")
-            elif param.name == 'formation_side_length':
+            if param.name == 'formation_side_length':
                 self.formation_side_length = param.value
                 self.desired_formation = self.get_desired_formation(self.formation_side_length)
                 self.f_formation.set_desired_formation(self.desired_formation)
                 self.get_logger().info(f"Formation side length set to {self.formation_side_length}")
+                self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
             elif param.name == 'mission_zlevel':
                 self.mission_zlevel = param.value
                 self.get_logger().info(f"Mission Z-level set to {self.mission_zlevel}")
@@ -191,7 +186,7 @@ class DroneManager(Node):
                 self.f_target.k_target = param.value
                 self.get_logger().info(f"Target k set to {self.f_target.k_target}")
             elif param.name == 'num_particles':
-                self.particle_filter.num_particles = param.value
+                self.particle_filter.set_num_particles(param.value)
                 self.get_logger().info(f"Number of particles set to {self.particle_filter.num_particles}")
             elif param.name == 'uwb_threshold':
                 self.uwb_threshold = param.value
@@ -441,7 +436,7 @@ class DroneManager(Node):
             if self.system_id == self.system_id_list[0]:
                 self.change_mode(Mode.COLLECTION, delay_seconds=2.0)
             else:
-                self.change_mode(Mode.RETURN, delay_seconds=3.0)
+                self.change_mode(Mode.RETURN, delay_seconds=4.0)
             return
         
     def compute_weight(self):
@@ -561,11 +556,11 @@ class DroneManager(Node):
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
         collection_target=[]
         if self.collection_step == 0:
-            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 2.0)]
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 4.0)]
         elif self.collection_step == 1:
             collection_target = [self.target[0], self.target[1], - (0.2)]
         elif self.collection_step == 2:
-            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 2.0)]
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 4.0)]
         grad_target = self.f_target.compute(
             current_pos=[
                 self.monitoring_msg.pos_x,
