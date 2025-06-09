@@ -107,16 +107,7 @@ class DroneManager(Node):
         self.collection_step = 0
         
         ## Timer ##
-        timer_period_ocm = 0.1
-        self.timer_ocm = self.create_timer(timer_period_ocm, self.timer_ocm_callback)
-        timer_period_uwb = 0.04 # 25hz
-        self.timer_uwb = self.create_timer(timer_period_uwb, self.timer_uwb_callback)
-        timer_period_global_path = 0.1
-        self.timer_global_path = self.create_timer(timer_period_global_path, self.timer_global_path_callback)
-        timer_period_mission = 0.04 # 25hz
-        self.timer_mission = self.create_timer(timer_period_mission, self.timer_mission_callback)
-        timer_period_monitoring = 1 # 1hz
-        self.timer_monitoring = self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
+        self.timer_start()
         
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
@@ -143,8 +134,14 @@ class DroneManager(Node):
         self.declare_parameter("target_k", 2.0)  # Target force constant
         self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
-        self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
+        self.declare_parameter("num_particles", 700)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
+        # Timer parameters
+        self.declare_parameter("timer_ocm_period", 0.1)  # Timer period for OCM in seconds 10hz
+        self.declare_parameter("timer_uwb_period", 0.1)  # Timer period for UWB in seconds 10hz
+        self.declare_parameter("timer_global_path_period", 0.1)  # Timer period for global path in seconds 10hz
+        self.declare_parameter("timer_mission_period", 0.05)  # Timer period for mission in seconds 20hz
+        self.declare_parameter("timer_monitoring_period", 1.0)  # Timer period for monitoring in seconds 1hz
 
     def set_parameters_callback(self, params):
         result = SetParametersResult()
@@ -195,9 +192,43 @@ class DroneManager(Node):
                 weight_table = param.value
                 self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
                 self.get_logger().info(f"Weight table updated: {self.weight_table}")
+            elif param.name == 'timer_ocm_period':
+                self.timer_ocm.cancel()
+                self.timer_ocm = self.create_timer(param.value, self.timer_ocm_callback)
+                self.get_logger().info(f"OCM timer period set to {param.value} seconds")
+            elif param.name == 'timer_uwb_period':
+                self.timer_uwb.cancel()
+                self.timer_uwb = self.create_timer(param.value, self.timer_uwb_callback)
+                self.get_logger().info(f"UWB timer period set to {param.value} seconds")
+            elif param.name == 'timer_global_path_period':
+                self.timer_global_path.cancel()
+                self.timer_global_path = self.create_timer(param.value, self.timer_global_path_callback)
+                self.get_logger().info(f"Global path timer period set to {param.value} seconds")
+            elif param.name == 'timer_mission_period':
+                self.timer_mission.cancel()
+                self.timer_mission = self.create_timer(param.value, self.timer_mission_callback)
+                self.get_logger().info(f"Mission timer period set to {param.value} seconds")
+            elif param.name == 'timer_monitoring_period':
+                self.timer_monitoring.cancel()
+                self.timer_monitoring = self.create_timer(param.value, self.timer_monitoring_pub_callback)
+                self.get_logger().info(f"Monitoring timer period set to {param.value} seconds")
+
         result.successful = True
         return result
     
+    def timer_start(self):
+        self.get_logger().info("DroneManager Timer Started")
+        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value  
+        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value  
+        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value  
+        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value  
+        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value  
+        self.timer_uwb =            self.create_timer(timer_period_uwb, self.timer_uwb_callback)
+        self.timer_global_path =    self.create_timer(timer_period_global_path, self.timer_global_path_callback)
+        self.timer_mission =        self.create_timer(timer_period_mission, self.timer_mission_callback)
+        self.timer_ocm =            self.create_timer(timer_period_ocm, self.timer_ocm_callback)
+        self.timer_monitoring =     self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
+
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
         R = side_length / (2.0 * math.sin(math.pi / n))
