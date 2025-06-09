@@ -183,11 +183,7 @@ class DroneManager(Node):
         self.collection_step = 0
 
         # --- Timer setting ---
-        self.timer_ocm = self.create_timer(0.1, self.timer_ocm_callback)                    # 10 Hz
-        self.timer_uwb = self.create_timer(0.04, self.timer_uwb_callback)                   # 25 Hz
-        self.timer_global_path = self.create_timer(0.1, self.timer_global_path_callback)    # 10 Hz
-        self.timer_mission = self.create_timer(0.04, self.timer_mission_callback)           # 25 Hz
-        self.timer_monitoring = self.create_timer(1.0, self.timer_monitoring_pub_callback)  #  1 Hz
+        self.timer_start()
 
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
@@ -198,7 +194,7 @@ class DroneManager(Node):
         # Declare parameters for the drone manager
         self.declare_parameter('system_id', 1)
         self.declare_parameter('system_id_list', [1,2,3,4])
-        self.declare_parameter('formation_side_length', 6.0)
+        self.declare_parameter('formation_side_length', 7.0)
         self.declare_parameter('mission_zlevel', 3.0)
         # Formation parameters
         self.declare_parameter("formation_k_scale", 0.0)
@@ -208,14 +204,20 @@ class DroneManager(Node):
         self.declare_parameter("formation_tolerance", 1.5)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
-        self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
+        self.declare_parameter("repulsion_cutoff", 5.0)  # Cutoff distance for repulsion
         self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
         self.declare_parameter("target_k", 2.0)  # Target force constant
         self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
-        self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
+        self.declare_parameter("num_particles", 700)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
+        # Timer parameters
+        self.declare_parameter("timer_ocm_period", 0.15)            #  10hz
+        self.declare_parameter("timer_uwb_period", 0.1)             #  10hz
+        self.declare_parameter("timer_global_path_period", 0.1)     #  10hz
+        self.declare_parameter("timer_mission_period", 0.05)        #  20hz
+        self.declare_parameter("timer_monitoring_period", 1.0)      #  1hz
 
     def set_parameters_callback(self, params):
         result = SetParametersResult()
@@ -225,6 +227,7 @@ class DroneManager(Node):
                 self.desired_formation = self.get_desired_formation(self.formation_side_length)
                 self.f_formation.set_desired_formation(self.desired_formation)
                 self.get_logger().info(f"Formation side length set to {self.formation_side_length}")
+                self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
             elif param.name == 'mission_zlevel':
                 self.mission_zlevel = param.value
                 self.get_logger().info(f"Mission Z-level set to {self.mission_zlevel}")
@@ -256,7 +259,7 @@ class DroneManager(Node):
                 self.f_target.k_target = param.value
                 self.get_logger().info(f"Target k set to {self.f_target.k_target}")
             elif param.name == 'num_particles':
-                self.particle_filter.num_particles = param.value
+                self.particle_filter.set_num_particles(param.value)
                 self.get_logger().info(f"Number of particles set to {self.particle_filter.num_particles}")
             elif param.name == 'uwb_threshold':
                 self.uwb_threshold = param.value
@@ -265,9 +268,42 @@ class DroneManager(Node):
                 weight_table = param.value
                 self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
                 self.get_logger().info(f"Weight table updated: {self.weight_table}")
+            elif param.name == 'timer_ocm_period':
+                self.timer_ocm.cancel()
+                self.timer_ocm = self.create_timer(param.value, self.timer_ocm_callback)
+                self.get_logger().info(f"OCM timer period set to {param.value} seconds")
+            elif param.name == 'timer_uwb_period':
+                self.timer_uwb.cancel()
+                self.timer_uwb = self.create_timer(param.value, self.timer_uwb_callback)
+                self.get_logger().info(f"UWB timer period set to {param.value} seconds")
+            elif param.name == 'timer_global_path_period':
+                self.timer_global_path.cancel()
+                self.timer_global_path = self.create_timer(param.value, self.timer_global_path_callback)
+                self.get_logger().info(f"Global path timer period set to {param.value} seconds")
+            elif param.name == 'timer_mission_period':
+                self.timer_mission.cancel()
+                self.timer_mission = self.create_timer(param.value, self.timer_mission_callback)
+                self.get_logger().info(f"Mission timer period set to {param.value} seconds")
+            elif param.name == 'timer_monitoring_period':
+                self.timer_monitoring.cancel()
+                self.timer_monitoring = self.create_timer(param.value, self.timer_monitoring_pub_callback)
+                self.get_logger().info(f"Monitoring timer period set to {param.value} seconds")
         result.successful = True
         return result
     
+    def timer_start(self):
+        self.get_logger().info("DroneManager Timer Started")
+        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value  
+        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value  
+        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value  
+        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value  
+        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value  
+        self.timer_uwb =            self.create_timer(timer_period_uwb, self.timer_uwb_callback)
+        self.timer_global_path =    self.create_timer(timer_period_global_path, self.timer_global_path_callback)
+        self.timer_mission =        self.create_timer(timer_period_mission, self.timer_mission_callback)
+        self.timer_ocm =            self.create_timer(timer_period_ocm, self.timer_ocm_callback)
+        self.timer_monitoring =     self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
+
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
         R = side_length / (2.0 * math.sin(math.pi / n))
@@ -504,7 +540,7 @@ class DroneManager(Node):
             - w_target    * grad_target
         )
         grad_norm = np.linalg.norm(total_grad)
-        self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
+        # self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
         self.is_formation_converged(grad_norm)
         total_grad = np.nan_to_num(total_grad)
         result_direc = self.set_direction(total_grad)
