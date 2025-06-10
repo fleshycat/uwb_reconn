@@ -126,7 +126,7 @@ class DroneManager(Node):
     def drone_manager_delcare_parameters(self):
         # Declare parameters for the drone manager
         self.declare_parameter('system_id', 1)
-        self.declare_parameter('system_id_list', [1,2,3,4])
+        self.declare_parameter('system_id_list', [1,2,3,4,5])
         self.declare_parameter('formation_side_length', 6.0)
         self.declare_parameter('mission_zlevel', 5.0)
         # Formation parameters
@@ -134,7 +134,7 @@ class DroneManager(Node):
         self.declare_parameter("formation_k_pair", 4.0)
         self.declare_parameter("formation_k_shape", 4.0)
         self.declare_parameter("formation_k_z", 4.0)
-        self.declare_parameter("formation_tolerance", 0.1)
+        self.declare_parameter("formation_tolerance", 1.5)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
         self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
