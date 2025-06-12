@@ -192,6 +192,7 @@ class DroneManager(Node):
         self.init_timestamp = self.get_clock().now().to_msg().sec
 
         self.initiate_drone_manager()
+        self.count = 0.0
 
     def drone_manager_delcare_parameters(self):
         # Declare parameters for the drone manager
@@ -385,8 +386,8 @@ class DroneManager(Node):
         uwb_pub_msg.seq = self.mode_handler.get_mode().value
 
         # Drone NED position
-        uwb_pub_msg.anchor_pose.position.x     = float(self.system_id)
-        uwb_pub_msg.anchor_pose.position.y     = 0.0
+        uwb_pub_msg.anchor_pose.position.x     = (self.system_id + self.count + 1) % 1000
+        uwb_pub_msg.anchor_pose.position.y     = (self.count + 10) % 1000
         uwb_pub_msg.anchor_pose.position.z     = 0.0
         # Drone Ref LLH (RTK-GPS)
         uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
@@ -398,6 +399,10 @@ class DroneManager(Node):
 
         # Publish the UWB message
         self.uwb_ranging_publisher.publish(uwb_pub_msg)
+        if self.count >= 2000.0:
+            self.count = 0.0
+        else:
+            self.count += 1.0
 
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
