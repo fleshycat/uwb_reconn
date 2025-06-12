@@ -4,7 +4,7 @@ from rclpy.qos import qos_profile_sensor_data
 from rcl_interfaces.msg import SetParametersResult
 
 # std_msgs
-from std_msgs.msg import Header, UInt8
+from std_msgs.msg import Header, UInt32, UInt8
 # px4_msgs
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, \
     VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
@@ -17,6 +17,7 @@ from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
 ## only for simulation ##
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
+
 
 from drone_manager.class_particle import ParticleFilter
 from drone_manager.formation import FormationForce
@@ -77,6 +78,8 @@ class DroneManager(Node):
             f'{self.topic_prefix_fmu}in/vehicle_command',
             10
         )
+        self.mission_runtime_publisher = self.create_publisher(UInt32, f"{self.topic_prefix_manager}out/mission_runtime", qos_profile_sensor_data)
+
         # J-Fi Publisher
         self.uwb_ranging_publisher = self.create_publisher(
             Ranging,
@@ -382,9 +385,9 @@ class DroneManager(Node):
         uwb_pub_msg.seq = self.mode_handler.get_mode().value
 
         # Drone NED position
-        uwb_pub_msg.anchor_pose.position.x     = self.monitoring_msg.pos_x
-        uwb_pub_msg.anchor_pose.position.y     = self.monitoring_msg.pos_y
-        uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
+        uwb_pub_msg.anchor_pose.position.x     = float(self.system_id)
+        uwb_pub_msg.anchor_pose.position.y     = 0.0
+        uwb_pub_msg.anchor_pose.position.z     = 0.0
         # Drone Ref LLH (RTK-GPS)
         uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
@@ -401,14 +404,18 @@ class DroneManager(Node):
 
     ### Mission Progress ####
     def timer_mission_callback(self):
+        self.mission_runtime_publisher.publish(UInt32(data=0)) ## Debugging purpose
         if len(self.takeoff_offset_dic) != 4:
             self.calculate_takeoff_offset()
             return
         self.update_uwb_data_list()
+        self.mission_runtime_publisher.publish(UInt32(data=10)) ## Debugging purpose
         self.particle_step()
+        self.mission_runtime_publisher.publish(UInt32(data=20)) ## Debugging purpose
         if len(self.uwb_data_list) >= 3:
             self.share_target()
         self.formation_move_agent()
+        self.mission_runtime_publisher.publish(UInt32(data=40)) ## Debugging purpose
         if self.mode_handler.is_in_mode(Mode.COLLECTION):
             self.handle_COLLECTION()
         if self.mode_handler.is_in_mode(Mode.RETURN):
@@ -758,6 +765,9 @@ class DroneManager(Node):
 
     ## Utility ##
     def calculate_takeoff_offset(self):
+        for i in range(1, len(self.system_id_list) + 1):
+            self.takeoff_offset_dic[f"{i}"] = [0.0, 0.0, 0.0]
+        return
         self.takeoff_offset_dic.clear()
         ref_LLH = [
             self.monitoring_msg.ref_lat,
