@@ -323,7 +323,7 @@ class DroneManager(Node):
         return desired_formation
 
     def initiate_drone_manager(self):
-        self.change_mode(Mode.HAVE_TARGET)
+        self.change_mode(Mode.QHAC)
         self.change_ocm_msg_position()
         self.agent_uwb_range_dic.clear()
 
