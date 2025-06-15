@@ -214,7 +214,7 @@ class DroneManager(Node):
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
         # Timer parameters
         self.declare_parameter("timer_ocm_period", 0.15)            #  10hz
-        self.declare_parameter("timer_uwb_period", 0.1)             #  10hz
+        self.declare_parameter("timer_uwb_period", 0.04)            #  25hz
         self.declare_parameter("timer_global_path_period", 0.1)     #  10hz
         self.declare_parameter("timer_mission_period", 0.05)        #  20hz
         self.declare_parameter("timer_monitoring_period", 1.0)      #  1hz
@@ -414,7 +414,7 @@ class DroneManager(Node):
         if self.mode_handler.is_in_mode(Mode.RETURN):
             self.handle_RETURN()
         if self.mode_handler.is_in_mode(Mode.COMPLETED):  
-            self.share_target()
+            self.handle_COMPLETED()
 
     ## Sub callback ##
     def monitoring_callback(self, msg: Monitoring):
@@ -714,17 +714,20 @@ class DroneManager(Node):
                 value.anchor_pose.position.z
             ]
         grad_repulsion = self.f_repulsion.compute(agents_pos)[self.system_id-1]
+        collection_target=[]
+        if self.collection_step == 0:
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 3.0)]
+        elif self.collection_step == 1:
+            collection_target = [self.target[0], self.target[1], - (0.2)]
+        elif self.collection_step == 2:
+            collection_target = [self.target[0], self.target[1], - (self.mission_zlevel + 3.0)]
         grad_target = self.f_target.compute(
             current_pos=[
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
                 self.monitoring_msg.pos_z,
                 ],
-            target=[
-                self.target[0],
-                self.target[1],
-                - ( self.mission_zlevel + 2.0 ),
-                ]
+            target = collection_target
             )
         w_repulsion, w_target = self.compute_weight()[:2]
         total_grad = (
@@ -747,14 +750,27 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        direction = TrajectorySetpointMsg()
+        direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
+        self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
-
-        if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
-                                    target_pos = [self.target[0], self.target[1]]
-                                    ) <= 0.5:
-            self.get_logger().info(f"DroneManager {self.system_id} : Collection Completed")
-            self.handle_flag = True
-            self.change_mode(Mode.RETURN, delay_seconds=5.0)
+        
+        remain_distance = np.linalg.norm(
+            np.array([self.monitoring_msg.pos_x, self.monitoring_msg.pos_y, self.monitoring_msg.pos_z]) -
+            np.array([collection_target[0], collection_target[1], collection_target[2]])
+        )
+        if remain_distance <= 0.2:
+            if self.collection_step == 0:
+                self.collection_step = 1
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Step 1")
+            elif self.collection_step == 1:
+                self.collection_step = 2
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Step 2")
+            elif self.collection_step == 2:
+                self.collection_step = 0
+                self.get_logger().info(f"DroneManager {self.system_id} : Collection Completed")
+                self.handle_flag = True
+                self.change_mode(Mode.RETURN, delay_seconds=5.0)
 
     ## Utility ##
     def calculate_takeoff_offset(self):
