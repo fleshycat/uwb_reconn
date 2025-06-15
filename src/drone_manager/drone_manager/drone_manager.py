@@ -750,9 +750,6 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
-        direction = TrajectorySetpointMsg()
-        direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
-        self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
         
         remain_distance = np.linalg.norm(
