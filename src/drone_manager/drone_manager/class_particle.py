@@ -12,6 +12,11 @@ class ParticleFilter:
         self.region_radius = 20.0
         self.step_counter = 0
     
+    def set_num_particles(self, num_particles):
+        self.num_particles = num_particles
+        self.particles = None
+        self.weights   = None
+
     def initialize(self, sensor_position):
         cx, cy = sensor_position
         r = self.region_radius
