@@ -3,6 +3,7 @@ log/
 build/
 rosbag/
 __pycache__/
+colcon.env
 
 .vscode/c_cpp_properties.json
 .vscode/settings.json
