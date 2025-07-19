@@ -76,23 +76,11 @@ if(DETECTED_ROS2)
   # find_package(<dependency> REQUIRED)
 
   rosidl_generate_interfaces(${PROJECT_NAME}
-    "msg-ros2/GenericRanging.msg"
-    "msg-ros2/Ranging.msg"
-    "msg-ros2/RangingList.msg"
-    "msg-ros2/UWBRanging.msg"
-    "msg-ros2/DWRanging.msg"
-    "msg-ros2/PozyxRanging.msg"
-    "msg-ros2/RangingDiff.msg"
-    "msg-ros2/PozyxRangingWithCir.msg"
-    "msg-ros2/ESP32S2FTMFrame.msg"
-    "msg-ros2/ESP32S2FTMRanging.msg"
-    "msg-ros2/ESP32S2FTMRangingExtra.msg"
-    "msg-ros2/RadarCube.msg"
-    "msg-ros2/RadarRangeAzimuth.msg"
-    "msg-ros2/RadarRangeDoppler.msg"
-    "msg-ros2/RadarFusedPointStamped.msg"
-    "msg-ros2/DoorCounterEvent.msg"
-    "msg-ros2/ZoneOccupancy.msg"
+    "msg/Ranging.msg"
+    "msg/RangingList.msg"
+    "msg/RangingDiff.msg"
+    "msg/UWBRanging.msg"
+    "msg/ParticleDistribution.msg"
     DEPENDENCIES geometry_msgs std_msgs # Add packages that above messages depend on, in this case geometry_msgs for Sphere.msg
   )
 
