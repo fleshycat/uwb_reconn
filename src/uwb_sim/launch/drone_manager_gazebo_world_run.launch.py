@@ -182,6 +182,14 @@ def launch_setup(context, *args, **kwargs):
                      }],
         output='screen'
     )
+    
+    tag_random_move = Node(
+        package='mission',
+        executable='tag_random_move',
+        name='tag_random_move',
+        parameters=[{'real_ref_agent_pos' : [ref_agent_x, ref_agent_y]}],
+        #output='screen',
+    )
 
     # rviz configuration
     rviz_config_file = PathJoinSubstitution(
@@ -211,6 +219,7 @@ def launch_setup(context, *args, **kwargs):
         # tag_pos_node,
         rviz_visualizer,
         rviz_node,
+        tag_random_move,
     ]
 
     return nodes_to_start

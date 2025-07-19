@@ -65,12 +65,18 @@ class rivzVisualizer(Node):
             self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/gradient', self.make_gradient_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list
         ]
+        self.real_tag_pos_subscriber = self.create_subscription(Marker, f'uwb_tag_marker', self.make_tag_callback(), qos_profile_sensor_data)
 
 
         ## Timer ##
         timer_period_target = 0.1
         self.timer_ocm = self.create_timer(timer_period_target, self.publish_rviz_topic)
 
+    def make_tag_callback(self):
+        def callback(msg):
+            self.real_tag_pos = [msg.pose.position.x, msg.pose.position.y]
+            self.publish_tag()
+        return callback
     
     def make_target_callback(self, sys_id):
         def callback(msg):
@@ -95,7 +101,6 @@ class rivzVisualizer(Node):
     def publish_rviz_topic(self):
         self.publish_target()
         self.publish_agents()
-        self.publish_tag()
         self.publish_gradient()
         for i in self.system_id_list:
             self.publish_particle_cloud(i) 

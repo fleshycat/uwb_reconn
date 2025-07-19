@@ -127,11 +127,16 @@
       </link>
   </model>
 
-    <gui>
-      <camera name="camera">
-        <pose>-40 0 5 0 0 0</pose>
-      </camera>
-    </gui>
+  <gui>
+    <camera name="camera">
+      <pose>-40 0 5 0 0 0</pose>
+    </camera>
+  </gui>
+
+  <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+    <robotNamespace>/</robotNamespace>
+    <updateRate>30.0</updateRate>
+  </plugin>
 
   </world>
 </sdf>
