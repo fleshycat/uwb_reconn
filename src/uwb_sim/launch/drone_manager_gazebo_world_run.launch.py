@@ -74,15 +74,6 @@ def launch_setup(context, *args, **kwargs):
             get_package_share_directory('gazebo_ros'), 'launch'), '/gazebo.launch.py']),
         launch_arguments={'world': world_file_path, 'verbose':'false', 'gui':'true' }.items()
     )
-
-    # Run trilateration Node
-    tag_pos_node = Node(
-        package='uwb_localization',
-        executable='sqrrange_leastsqr_localization',
-        name='tag_pos',
-        output='screen',
-        parameters=[{'system_id_list': [i+1 for i in range(num_drone)]}],
-    )
     
     drone_process_list = []
     for i in range(num_drone):
@@ -233,14 +224,6 @@ def generate_launch_description():
             'px4_src_path',
             default_value='/home/user/PX4Swarm',
             description='px4 source code path'
-        )
-    )
-
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'robot_type',
-            default_value='iris',
-            description='Type of the robot to spawn'
         )
     )
 
