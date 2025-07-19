@@ -5,7 +5,7 @@ from rcl_interfaces.msg import SetParametersResult
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
-from uwb_msgs.msg import RangingDiff, Ranging
+from uwb_msgs.msg import RangingDiff, Ranging, ParticleDistribution
 
 ## only for simulation ##
 import std_msgs.msg as std_msgs
@@ -25,7 +25,7 @@ import numpy as np
 class DroneManager(Node):
     def __init__(self):
         super().__init__("drone_manager")
-        self.drone_manager_delcare_parameters()
+        self.drone_manager_declare_parameters()
         self.system_id = self.get_parameter('system_id').get_parameter_value().integer_value
         self.system_id_list = self.get_parameter('system_id_list').get_parameter_value().integer_array_value
         self.formation_side_length = self.get_parameter('formation_side_length').get_parameter_value().double_value
@@ -44,6 +44,7 @@ class DroneManager(Node):
         self.takeoff_offset_dic = {}
         self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         self.agent_target_dic = {}
+        self.agent_particle_distribution_dic = {}
         
         self.direction = TrajectorySetpointMsg()
 
@@ -52,6 +53,7 @@ class DroneManager(Node):
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
         self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data)
+        self.particle_distribution_publisher = self.create_publisher(ParticleDistribution, f'{self.topic_prefix_manager}out/particle', qos_profile_sensor_data)
         self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
         self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
@@ -69,6 +71,10 @@ class DroneManager(Node):
         ]
         self.agent_target_subscribers = [
             self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/target', self.make_target_callback(i), qos_profile_sensor_data)
+            for i in self.system_id_list if i != self.system_id
+        ]
+        self.agent_particle_subscribers = [
+            self.create_subscription(ParticleDistribution, f'drone{i}/manager/out/particle', self.make_particle_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
         ]
         self.add_on_set_parameters_callback(self.set_parameters_callback)
@@ -113,8 +119,8 @@ class DroneManager(Node):
         self.init_timestamp = self.get_clock().now().to_msg().sec
         
         self.initiate_drone_manager()
-    
-    def drone_manager_delcare_parameters(self):
+
+    def drone_manager_declare_parameters(self):
         # Declare parameters for the drone manager
         self.declare_parameter('system_id', 1)
         self.declare_parameter('system_id_list', [1,2,3,4])
@@ -132,9 +138,9 @@ class DroneManager(Node):
         self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
         self.declare_parameter("target_k", 2.0)  # Target force constant
-        self.declare_parameter("weight_table", [10,1,1, 10,1,0, 10,1,2])  # Weights for repulsion, target, and formation
+        self.declare_parameter("weight_table", [10,1,1, 10,2,0, 10,2,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
-        self.declare_parameter("num_particles", 700)  # Number of particles for the particle filter
+        self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
         # Timer parameters
         self.declare_parameter("timer_ocm_period", 0.1)  # Timer period for OCM in seconds 10hz
@@ -310,6 +316,7 @@ class DroneManager(Node):
         self.particle_step()
         if len(self.uwb_data_list) >= 3:
             self.share_target()
+            #self.share_particles()
         self.formation_move_agent()
         if self.mode_handler.is_in_mode(Mode.COLLECTION):
             self.handle_COLLECTION()
@@ -384,7 +391,26 @@ class DroneManager(Node):
                 targets.append(target)
                 # self.get_logger().info(f"target:, {target}")
         if len(targets):
-            self.particle_filter.inject_shared([[t[0], t[1]] for t in targets])
+            self.particle_filter.inject_shared_target([[t[0], t[1]] for t in targets])
+            for key, value in self.agent_target_dic.items():
+                self.agent_target_dic[key] = None
+    
+    def share_particles(self):
+        ## It should run only when the mode is HAVE_TARGET ##
+        if not self.mode_handler.is_in_mode(Mode.HAVE_TARGET) and not self.mode_handler.is_in_mode(Mode.CONVERGED):
+            return
+        particle_distribution = []
+        for key, value in self.agent_particle_distribution_dic.items():
+            if value is not None:
+                ref_llh = [self.monitoring_msg.ref_lat,
+                   self.monitoring_msg.ref_lon,
+                   self.monitoring_msg.ref_alt]
+                sensor_position = LLH2NED([value.sensor_pos[0], value.sensor_pos[1], 0], ref_llh)
+                value.senor_pos = sensor_position
+                particle_distribution.append(value)
+                # self.get_logger().info(f"target:, {target}")
+        if len(particle_distribution):
+            self.particle_filter.inject_from_metrics([t for t in particle_distribution])
             for key, value in self.agent_target_dic.items():
                 self.agent_target_dic[key] = None
 
@@ -436,7 +462,6 @@ class DroneManager(Node):
             - w_target    * grad_target
         )
         grad_norm = np.linalg.norm(total_grad)
-        self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
         self.is_formation_converged(grad_norm)
         total_grad = np.nan_to_num(total_grad)
         result_direc = self.set_direction(total_grad)
@@ -654,6 +679,12 @@ class DroneManager(Node):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
         def callback(msg):
             self.agent_target_dic[f'{sys_id}'] = msg
+        return callback
+    
+    def make_particle_callback(self, sys_id):
+        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Subscriber")
+        def callback(msg):
+            self.agent_particle_distribution_dic[f'{sys_id}'] = msg
         return callback
     
     ## Publisher ##

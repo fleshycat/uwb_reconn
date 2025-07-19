@@ -29,7 +29,7 @@ class ParticleFilter:
         self.particles = np.column_stack((xs, ys))
         self.weights   = np.ones(self.num_particles) / self.num_particles
     
-    def inject_shared(self, external_estimates, n_shared=50, sigma=0.5):
+    def inject_shared_target(self, external_estimates, n_shared=50, sigma=0.5):
         if self.particles is None:
             return
         
@@ -52,6 +52,49 @@ class ParticleFilter:
         self.particles = all_particles[idx]
         self.weights   = all_weights[idx]
         self.weights /= np.sum(self.weights)
+        
+    def inject_from_metrics(self, metrics_list, n_shared=100):
+        if self.particles is None or len(metrics_list) == 0:
+            return
+
+        k = int(np.ceil(n_shared / len(metrics_list)))
+        shared_parts = []
+
+        for sensor_pos, avg_r, b_min_deg, b_max_deg, r_std in metrics_list:
+            # sample angles in [bearing_min, bearing_max]
+            angles = np.random.uniform(
+                np.radians(b_min_deg),
+                np.radians(b_max_deg),
+                size=k
+            )
+            # sample radii around avg_r with std=r_std
+            radii = np.random.normal(loc=avg_r, scale=r_std, size=k)
+            # polar → cartesian
+            xs = sensor_pos[0] + radii * np.cos(angles)
+            ys = sensor_pos[1] + radii * np.sin(angles)
+            shared_parts.append(np.column_stack((xs, ys)))
+
+        # stack and trim to exactly n_shared
+        shared = np.vstack(shared_parts)[:n_shared]
+
+        # merge with existing particles
+        all_particles = np.vstack((self.particles, shared))
+
+        # keep old weights, give new ones a small equal weight
+        w_old = self.weights
+        w_new = np.full(n_shared, 1.0 / (n_shared * 10))
+        all_weights = np.hstack((w_old, w_new))
+        all_weights /= np.sum(all_weights)
+
+        # resample back down to original count
+        choose_idx = np.random.choice(
+            a=all_particles.shape[0],
+            size=self.num_particles,
+            p=all_weights
+        )
+        self.particles = all_particles[choose_idx]
+        # reset to uniform after injection
+        self.weights = np.ones(self.num_particles) / self.num_particles
           
     def predict(self):
         noise = np.random.normal(
@@ -113,6 +156,22 @@ class ParticleFilter:
             self.weights   = np.ones(self.num_particles) / self.num_particles
         
         return self.particles, self.weights
+
+    def distribution_metrics(self, sensor_position):
+        if self.particles is None or len(self.particles) == 0:
+            return None  # no particles
+
+       # 2) Relative vectors, distances and bearings
+        rel = self.particles - sensor_position      # shape (N,2)
+        distances = np.linalg.norm(rel, axis=1)
+        avg_radius = np.mean(distances)
+        radius_std = np.std(distances)
+
+        bearings = np.degrees(np.arctan2(rel[:,1], rel[:,0]))
+        bearing_min = np.min(bearings)
+        bearing_max = np.max(bearings)
+
+        return sensor_position, avg_radius, bearing_min, bearing_max, radius_std
 
     def estimate(self):
         if self.particles is not None:
