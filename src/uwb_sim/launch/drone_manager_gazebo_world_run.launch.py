@@ -72,7 +72,12 @@ def launch_setup(context, *args, **kwargs):
     gazebo_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('gazebo_ros'), 'launch'), '/gazebo.launch.py']),
-        launch_arguments={'world': world_file_path, 'verbose':'false', 'gui':'true' }.items()
+        launch_arguments={
+            'world': world_file_path, 
+            'verbose': 'false', 
+            'gui': 'true',
+            'use_sim_time': 'true'
+        }.items()
     )
     
     drone_process_list = []
@@ -159,18 +164,9 @@ def launch_setup(context, *args, **kwargs):
             package='mission',
             executable='start_mission_uwb_straight',
             parameters=[{'system_id': i + 1}],
-            output='screen',
+            #output='screen',
         )
         drone_process_list.append(start_mission_node)
-    
-    uwb_reconn = Node(
-        package='mission',
-        executable='uwb_reconnaissance',
-        name='uwb_reconn',
-        parameters=[{'system_id_list': [i+1 for i in range(num_drone)],
-                     'formation_square_length': 4.0}],
-        output='screen'
-    )
     
     rviz_visualizer = Node(
         package='rviz_visualizer',
@@ -216,7 +212,6 @@ def launch_setup(context, *args, **kwargs):
         xrce_agent_process,
         gazebo_node,
         *drone_process_list,
-        # tag_pos_node,
         rviz_visualizer,
         rviz_node,
         tag_random_move,
@@ -247,7 +242,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             'num_drone',
-            default_value='1',
+            default_value='4',
             description='Number of drone to spawn'
         )
     )
