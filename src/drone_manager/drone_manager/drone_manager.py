@@ -44,6 +44,7 @@ class DroneManager(Node):
         self.takeoff_offset_dic = {}
         self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         self.agent_target_dic = {}
+        self.agent_particle_metrics_dic = {}
         self.agent_particle_distribution_dic = {}
         
         self.direction = TrajectorySetpointMsg()
@@ -53,7 +54,7 @@ class DroneManager(Node):
         self.uwb_ranging_publisher = self.create_publisher(Ranging, f'{self.topic_prefix_manager}out/ranging', qos_profile_sensor_data)
         self.traj_setpoint_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_fmu}in/trajectory_setpoint', qos_profile_sensor_data)
         self.target_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/target', qos_profile_sensor_data)
-        self.particle_distribution_publisher = self.create_publisher(ParticleDistribution, f'{self.topic_prefix_manager}out/particle', qos_profile_sensor_data)
+        self.particle_distribution_publisher = self.create_publisher(ParticleDistribution, f'{self.topic_prefix_manager}out/particle_distribution', qos_profile_sensor_data)
         self.particle_publisher = self.create_publisher(PointCloud2, f'{self.topic_prefix_manager}out/particle_cloud', qos_profile_sensor_data)
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
         self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
@@ -73,8 +74,8 @@ class DroneManager(Node):
             self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/target', self.make_target_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
         ]
-        self.agent_particle_subscribers = [
-            self.create_subscription(ParticleDistribution, f'drone{i}/manager/out/particle', self.make_particle_callback(i), qos_profile_sensor_data)
+        self.agent_particle_distribution_subscribers = [
+            self.create_subscription(ParticleDistribution, f'drone{i}/manager/out/particle_distribution', self.make_particle_distribution_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list if i != self.system_id
         ]
         self.add_on_set_parameters_callback(self.set_parameters_callback)
@@ -373,6 +374,7 @@ class DroneManager(Node):
         self.publish_target(estimate)
         if self.particle is not None:
             self.publish_particle_cloud(self.particle)
+            self.publish_particle_distribution()
         if self.mode_handler.is_in_mode(Mode.SEARCH):
             self.change_mode(Mode.HAVE_TARGET)
             
@@ -681,8 +683,20 @@ class DroneManager(Node):
             self.agent_target_dic[f'{sys_id}'] = msg
         return callback
     
+    def make_particle_metrics_callback(self, sys_id):
+        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Metrics Subscriber")
+        def callback(msg):
+            self.agent_particle_metrics_dic[f'{sys_id}'] = msg
+        return callback
+    
     def make_particle_callback(self, sys_id):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Subscriber")
+        def callback(msg):
+            self.agent_particle_distribution_dic[f'{sys_id}'] = msg
+        return callback
+    
+    def make_particle_distribution_callback(self, sys_id):
+        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Distribution Subscriber")
         def callback(msg):
             self.agent_particle_distribution_dic[f'{sys_id}'] = msg
         return callback
@@ -709,6 +723,34 @@ class DroneManager(Node):
         points = [(float(x), float(y), 0.0) for x,y in particles]
         cloud_msg = point_cloud2.create_cloud_xyz32(header, points)
         self.particle_publisher.publish(cloud_msg)
+
+    def publish_particle_distribution(self):
+        """Publish particle distribution metrics for visualization"""
+        if self.particle_filter.particles is None:
+            return
+            
+        # Get distribution metrics from particle filter
+        sensor_position = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y]
+        metrics = self.particle_filter.distribution_metrics(sensor_position)
+        
+        if metrics is None:
+            return
+            
+        # Unpack metrics
+        sensor_pos, avg_radius, bearing_min, bearing_max, radius_std = metrics
+        
+        # Create ParticleDistribution message
+        distribution_msg = ParticleDistribution()
+        distribution_msg.sensor_pos.x = float(sensor_pos[0])
+        distribution_msg.sensor_pos.y = float(sensor_pos[1])
+        distribution_msg.sensor_pos.z = 0.0
+        distribution_msg.avg_radius = float(avg_radius)
+        distribution_msg.bearing_min = float(bearing_min)
+        distribution_msg.bearing_max = float(bearing_max)
+        distribution_msg.radius_std = float(radius_std)
+        
+        # Publish the message
+        self.particle_distribution_publisher.publish(distribution_msg)
 
     ## OCM Msg ##
     def change_ocm_msg_position(self):

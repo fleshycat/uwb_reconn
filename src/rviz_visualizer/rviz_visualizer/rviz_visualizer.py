@@ -4,6 +4,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+from uwb_msgs.msg import ParticleDistribution
 
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseArray, Pose, Point
@@ -31,6 +32,7 @@ class rivzVisualizer(Node):
         self.agents_pos_dic = {f'{i}':Monitoring() for i in self.system_id_list}
         self.agents_particle_dic = {f'{i}':PointCloud2() for i in self.system_id_list}
         self.agents_gradient_dic = {f'{i}':TrajectorySetpointMsg() for i in self.system_id_list}
+        self.agents_metrics_dic = {f'{i}':ParticleDistribution() for i in self.system_id_list}
 
         self.topic_prefix_rviz = "rviz/visualize"
 
@@ -47,6 +49,7 @@ class rivzVisualizer(Node):
             for i in self.system_id_list
         ]
         self.grdients_publisher = self.create_publisher(MarkerArray, f'{self.topic_prefix_rviz}/gradients', qos_profile_sensor_data)
+        self.metrics_publisher = self.create_publisher(MarkerArray, f'{self.topic_prefix_rviz}/particle_distribution', qos_profile_sensor_data)
 
         ## Subscriber ##
         self.agent_pos_subscribers = [
@@ -63,6 +66,10 @@ class rivzVisualizer(Node):
         ]
         self.gradients_subscribers = [
             self.create_subscription(TrajectorySetpointMsg, f'drone{i}/manager/out/gradient', self.make_gradient_callback(i), qos_profile_sensor_data)
+            for i in self.system_id_list
+        ]
+        self.metrics_subscribers = [
+            self.create_subscription(ParticleDistribution, f'drone{i}/manager/out/particle_distribution', self.make_metrics_callback(i), qos_profile_sensor_data)
             for i in self.system_id_list
         ]
         self.real_tag_pos_subscriber = self.create_subscription(Marker, f'uwb_tag_marker', self.make_tag_callback(), qos_profile_sensor_data)
@@ -98,10 +105,16 @@ class rivzVisualizer(Node):
             self.agents_gradient_dic[f'{sys_id}'] = msg
         return callback
 
+    def make_metrics_callback(self, sys_id):
+        def callback(msg):
+            self.agents_metrics_dic[f'{sys_id}'] = msg
+        return callback
+
     def publish_rviz_topic(self):
         self.publish_target()
         self.publish_agents()
         self.publish_gradient()
+        self.publish_particle_metrics()
         for i in self.system_id_list:
             self.publish_particle_cloud(i) 
 
@@ -256,6 +269,202 @@ class rivzVisualizer(Node):
             gradient.color.a = 1.0
             gradients.markers.append(gradient)
         self.grdients_publisher.publish(gradients)
+            
+    def publish_particle_metrics(self):
+        if len(self.agents_metrics_dic) == 0:
+            return
+
+        metrics_markers = MarkerArray()
+        ref_llh = [
+            self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_lat,
+            self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_lon,
+            self.agents_pos_dic[f'{self.ref_agent_sys_id}'].ref_alt,
+        ]
+        stamp = self.get_clock().now().to_msg()
+        
+        delete_all = Marker()
+        delete_all.action = Marker.DELETEALL
+        metrics_markers.markers.insert(0, delete_all)
+        
+        marker_id = 0
+        for key, metrics in self.agents_metrics_dic.items():
+            sys_id = int(key)
+            
+            # Get agent position
+            agent_pos_llh = [
+                self.agents_pos_dic[f'{key}'].lat,
+                self.agents_pos_dic[f'{key}'].lon,
+                self.agents_pos_dic[f'{key}'].alt,
+            ]
+            agent_pos_ned = LLH2NED(agent_pos_llh, ref_llh)
+            sensor_pos_x = agent_pos_ned[1]
+            sensor_pos_y = agent_pos_ned[0]
+            
+            # 1. Draw average radius circle
+            radius_marker = Marker()
+            radius_marker.header.frame_id = 'map'
+            radius_marker.header.stamp = stamp
+            radius_marker.ns = 'particle_radius'
+            radius_marker.id = marker_id
+            marker_id += 1
+            radius_marker.type = Marker.CYLINDER
+            radius_marker.action = Marker.ADD
+            
+            radius_marker.pose.position.x = sensor_pos_x
+            radius_marker.pose.position.y = sensor_pos_y
+            radius_marker.pose.position.z = 0.05
+            radius_marker.pose.orientation.w = 1.0
+            
+            # Scale: diameter for x,y and height for z
+            radius_marker.scale.x = max(0.01, metrics.avg_radius * 2.0)
+            radius_marker.scale.y = max(0.01, metrics.avg_radius * 2.0)
+            radius_marker.scale.z = 0.1
+            
+            # Color: translucent version of agent color
+            rgba = self.color_table[sys_id - 1]
+            radius_marker.color.r = rgba[0]
+            radius_marker.color.g = rgba[1]
+            radius_marker.color.b = rgba[2]
+            radius_marker.color.a = 0.2  # translucent
+            
+            #metrics_markers.markers.append(radius_marker)
+            
+            # 2. Draw radius uncertainty range (min/max circles)
+            radius_range = metrics.radius_std * 2.0  # ±2σ range
+            
+            # Min radius circle
+            min_radius = max(0.1, metrics.avg_radius - radius_range)
+            min_marker = Marker()
+            min_marker.header.frame_id = 'map'
+            min_marker.header.stamp = stamp
+            min_marker.ns = 'particle_radius_range'
+            min_marker.id = marker_id
+            marker_id += 1
+            min_marker.type = Marker.LINE_STRIP
+            min_marker.action = Marker.ADD
+            
+            # Draw circle with line strip
+            circle_points = []
+            for i in range(101):  # 100 segments + close the circle
+                angle = 2 * np.pi * i / 100
+                point = Point()
+                point.x = sensor_pos_x + min_radius * np.sin(angle)
+                point.y = sensor_pos_y + min_radius * np.cos(angle)
+                point.z = 0.1
+                circle_points.append(point)
+            
+            min_marker.points = circle_points
+            min_marker.scale.x = 0.02
+            min_marker.color.r = rgba[0]
+            min_marker.color.g = rgba[1]
+            min_marker.color.b = rgba[2]
+            min_marker.color.a = 0.5
+            
+            #metrics_markers.markers.append(min_marker)
+            
+            # Max radius circle
+            max_radius = metrics.avg_radius + radius_range
+            max_marker = Marker()
+            max_marker.header.frame_id = 'map'
+            max_marker.header.stamp = stamp
+            max_marker.ns = 'particle_radius_range'
+            max_marker.id = marker_id
+            marker_id += 1
+            max_marker.type = Marker.LINE_STRIP
+            max_marker.action = Marker.ADD
+            
+            # Draw circle with line strip
+            circle_points = []
+            for i in range(101):
+                angle = 2 * np.pi * i / 100
+                point = Point()
+                point.x = sensor_pos_x + max_radius * np.sin(angle)
+                point.y = sensor_pos_y + max_radius * np.cos(angle)
+                point.z = 0.1
+                circle_points.append(point)
+            
+            max_marker.points = circle_points
+            max_marker.scale.x = 0.02
+            max_marker.color.r = rgba[0]
+            max_marker.color.g = rgba[1]
+            max_marker.color.b = rgba[2]
+            max_marker.color.a = 0.5
+            
+            #metrics_markers.markers.append(max_marker)
+            
+            # 3. Draw bearing sector (angular range)
+            if metrics.bearing_max > metrics.bearing_min:
+                sector_marker = Marker()
+                sector_marker.header.frame_id = 'map'
+                sector_marker.header.stamp = stamp
+                sector_marker.ns = 'particle_bearing'
+                sector_marker.id = marker_id
+                marker_id += 1
+                sector_marker.type = Marker.LINE_LIST
+                sector_marker.action = Marker.ADD
+                
+                # Convert bearing to radians
+                bearing_min_rad = np.radians(metrics.bearing_min)
+                bearing_max_rad = np.radians(metrics.bearing_max)
+                
+                # Draw sector lines
+                sector_lines = []
+                visualization_radius = max(0.1, metrics.avg_radius)
+                
+                # Center to min bearing edge
+                start_point = Point()
+                start_point.x = sensor_pos_x
+                start_point.y = sensor_pos_y
+                start_point.z = 0.15
+                
+                end_point_min = Point()
+                end_point_min.x = sensor_pos_x + visualization_radius * np.sin(bearing_min_rad)
+                end_point_min.y = sensor_pos_y + visualization_radius * np.cos(bearing_min_rad)
+                end_point_min.z = 0.15
+                
+                sector_lines.extend([start_point, end_point_min])
+                
+                # Center to max bearing edge
+                start_point2 = Point()
+                start_point2.x = sensor_pos_x
+                start_point2.y = sensor_pos_y
+                start_point2.z = 0.15
+                
+                end_point_max = Point()
+                end_point_max.x = sensor_pos_x + visualization_radius * np.sin(bearing_max_rad)
+                end_point_max.y = sensor_pos_y + visualization_radius * np.cos(bearing_max_rad)
+                end_point_max.z = 0.15
+                
+                sector_lines.extend([start_point2, end_point_max])
+                
+                # Arc between min and max bearing
+                arc_steps = 20
+                for i in range(arc_steps):
+                    angle1 = bearing_min_rad + (bearing_max_rad - bearing_min_rad) * i / arc_steps
+                    angle2 = bearing_min_rad + (bearing_max_rad - bearing_min_rad) * (i + 1) / arc_steps
+                    
+                    point1 = Point()
+                    point1.x = sensor_pos_x + visualization_radius * np.sin(angle1)
+                    point1.y = sensor_pos_y + visualization_radius * np.cos(angle1)
+                    point1.z = 0.15
+                    
+                    point2 = Point()
+                    point2.x = sensor_pos_x + visualization_radius * np.sin(angle2)
+                    point2.y = sensor_pos_y + visualization_radius * np.cos(angle2)
+                    point2.z = 0.15
+                    
+                    sector_lines.extend([point1, point2])
+                
+                sector_marker.points = sector_lines
+                sector_marker.scale.x = 0.05
+                sector_marker.color.r = rgba[0]
+                sector_marker.color.g = rgba[1]
+                sector_marker.color.b = rgba[2]
+                sector_marker.color.a = 0.8
+                
+                metrics_markers.markers.append(sector_marker)
+        
+        self.metrics_publisher.publish(metrics_markers)
             
 
     def publish_particle_cloud(self, sys_id):
