@@ -481,6 +481,7 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        setpoint.yaw = math.atan2(dir_safe[1], dir_safe[0])
         direction = TrajectorySetpointMsg()
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
         self.total_gradient_publisher.publish(direction)
