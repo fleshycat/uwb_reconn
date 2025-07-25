@@ -29,6 +29,7 @@ setup(
             'uwb_reconnaissance = mission.uwb_reconnaissance:main',
             'ocm_publisher = mission.ocm_publisher:main',
             'tag_random_move = mission.tag_random_move:main',
+            'start_mission_uwb_cross = mission.start_mission_uwb_cross:main',
         ],
     },
 )
