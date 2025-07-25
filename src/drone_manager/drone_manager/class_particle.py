@@ -9,7 +9,8 @@ class ParticleFilter:
         self.particles = None
         self.weights   = None
         self.process_noise_std = 0.3
-        self.region_radius = 20.0
+        self.min_radius = 20.0
+        self.region_radius = self.min_radius
         self.step_counter = 0
     
     def set_num_particles(self, num_particles):
@@ -17,6 +18,11 @@ class ParticleFilter:
         self.particles = None
         self.weights   = None
 
+    def reset_particles(self):
+        self.particles = None
+        self.weights   = None
+        self.step_counter = 0
+        
     def initialize(self, sensor_position):
         cx, cy = sensor_position
         r = self.region_radius
@@ -29,6 +35,61 @@ class ParticleFilter:
         self.particles = np.column_stack((xs, ys))
         self.weights   = np.ones(self.num_particles) / self.num_particles
     
+    
+    def distribution_metrics(self, sensor_position):
+        if self.particles is None or len(self.particles) == 0:
+            return None  # no particles
+
+       # 2) Relative vectors, distances and bearings
+        rel = self.particles - sensor_position      # shape (N,2)
+        distances = np.linalg.norm(rel, axis=1)
+        avg_radius = np.mean(distances)
+        radius_std = np.std(distances)
+
+        raw_bearings = np.degrees(np.arctan2(rel[:,1], rel[:,0]))
+        bearings = (raw_bearings + 360) % 360
+
+        bearing_min = np.min(bearings)
+        bearing_max = np.max(bearings)
+        bearing_mid = np.median(bearings)
+        
+        if bearing_min < bearing_mid < bearing_max:
+            bearing_start, bearing_end = bearing_min, bearing_max
+        else:
+            bearing_start, bearing_end = bearing_max, bearing_min
+        return sensor_position, avg_radius, bearing_start, bearing_end, radius_std
+    
+    ##v2, need to fix
+    # def distribution_metrics(self, sensor_position):
+    #     if self.particles is None or len(self.particles) == 0:
+    #         return None  # no particles
+
+    #     # 2) Relative vectors, distances and bearings
+    #     rel = self.particles - sensor_position      # shape (N,2)
+    #     distances = np.linalg.norm(rel, axis=1)
+    #     avg_radius = np.mean(distances)
+    #     radius_std = np.std(distances)
+
+    #     raw_bearings = np.degrees(np.arctan2(rel[:,1], rel[:,0]))
+    #     bearing_neg = raw_bearings[raw_bearings < 0]
+    #     bearing_pos = raw_bearings[raw_bearings >= 0]
+    #     if len(bearing_pos) == 0:
+    #         bearing_start=np.min(bearing_neg)
+    #         bearing_end = np.max(bearing_neg)
+    #     elif len(bearing_neg) == 0:
+    #         bearing_start = np.min(bearing_pos)
+    #         bearing_end = np.max(bearing_pos)
+    #     elif ( np.min(bearing_pos) - np.max(bearing_neg) ) < 1.0:
+    #         bearing_start = np.min(bearing_neg)
+    #         bearing_end = np.max(bearing_pos)
+    #     else:
+    #         bearing_start = np.max(bearing_pos)
+    #         bearing_end = np.min(bearing_neg)
+
+    #     bearing_start = ( bearing_start + 360 ) % 360
+    #     bearing_end   = ( bearing_end + 360 ) % 360
+    #     return sensor_position, avg_radius, bearing_start, bearing_end, radius_std
+
     def inject_shared_target(self, external_estimates, n_shared=50, sigma=0.5):
         if self.particles is None:
             return
@@ -57,39 +118,39 @@ class ParticleFilter:
         if self.particles is None or len(metrics_list) == 0:
             return
 
-        k = int(np.ceil(n_shared / len(metrics_list)))
         shared_parts = []
 
-        for sensor_pos, avg_r, b_min_deg, b_max_deg, r_std in metrics_list:
-            # sample angles in [bearing_min, bearing_max]
-            angles = np.random.uniform(
-                np.radians(b_min_deg),
-                np.radians(b_max_deg),
-                size=k
-            )
+        for sensor_pos, avg_r, b_deg_start, b_deg_end, r_std in metrics_list:
+            # bearing_min, bearing_max are in -180~+180
+            delta = (b_deg_end - b_deg_start) % 360
+            us = np.random.uniform(0, delta, size=n_shared)
+            sample_angles = (b_deg_start + us) % 360
+            angles = np.radians(sample_angles)
             # sample radii around avg_r with std=r_std
-            radii = np.random.normal(loc=avg_r, scale=r_std, size=k)
+            radii = np.random.normal(loc=avg_r, scale=r_std, size=n_shared)
             # polar → cartesian
             xs = sensor_pos[0] + radii * np.cos(angles)
             ys = sensor_pos[1] + radii * np.sin(angles)
             shared_parts.append(np.column_stack((xs, ys)))
 
         # stack and trim to exactly n_shared
-        shared = np.vstack(shared_parts)[:n_shared]
+        shared = np.vstack(shared_parts)
 
         # merge with existing particles
         all_particles = np.vstack((self.particles, shared))
 
         # keep old weights, give new ones a small equal weight
-        w_old = self.weights
-        w_new = np.full(n_shared, 1.0 / (n_shared * 10))
-        all_weights = np.hstack((w_old, w_new))
+        w_old = self.weights                        # shape = (N_old,)
+        n_new = shared.shape[0]                     # == len(metrics_list) * n_shared
+        w_new = np.full(n_new, 1.0/(n_new * 10))    # shape = (n_new,)
+        all_weights = np.hstack((w_old, w_new))     # shape = (N_old + n_new,)
         all_weights /= np.sum(all_weights)
 
         # resample back down to original count
         choose_idx = np.random.choice(
             a=all_particles.shape[0],
             size=self.num_particles,
+            
             p=all_weights
         )
         self.particles = all_particles[choose_idx]
@@ -125,18 +186,18 @@ class ParticleFilter:
         if self.particles is None:
             if len(measurements) > 0:
                 self.initialize(current_pos)
-            else:
-                return np.zeros((self.num_particles,2)), np.ones(self.num_particles)/self.num_particles
-        # 1) Prediction: spread particles
+        
+        #Particle Progress Step
         self.update(point_pos, measurements, noise_std)
         self.predict()
         self.resample()
-        self.step_counter += 1
-        # if self.step_counter >= 80:
-        #     self.initialize(current_pos)
-        #     self.step_counter = 0
-        
-        
+        pts = np.array(point_pos)
+        cp  = np.array(current_pos)     
+        if pts.ndim == 1:
+            pts = pts[np.newaxis, :]    
+        distances = np.linalg.norm(pts - cp, axis=1)
+        self.region_radius = np.maximum(self.min_radius, np.max(distances) + 1.0)
+            
         # center = self.estimate()
         center = current_pos 
         
@@ -157,22 +218,6 @@ class ParticleFilter:
         
         return self.particles, self.weights
 
-    def distribution_metrics(self, sensor_position):
-        if self.particles is None or len(self.particles) == 0:
-            return None  # no particles
-
-       # 2) Relative vectors, distances and bearings
-        rel = self.particles - sensor_position      # shape (N,2)
-        distances = np.linalg.norm(rel, axis=1)
-        avg_radius = np.mean(distances)
-        radius_std = np.std(distances)
-
-        bearings = np.degrees(np.arctan2(rel[:,1], rel[:,0]))
-        bearing_min = np.min(bearings)
-        bearing_max = np.max(bearings)
-
-        return sensor_position, avg_radius, bearing_min, bearing_max, radius_std
-
     def estimate(self):
         if self.particles is not None:
             return np.average(self.particles, weights=self.weights, axis=0)
@@ -187,3 +232,6 @@ class ParticleFilter:
 
     def effective_sample_size(self):
         return 1.0 / np.sum(self.weights**2)
+    
+    def return_num_particles(self):
+        return len(self.particles) if self.particles is not None else 0

@@ -360,7 +360,7 @@ class rivzVisualizer(Node):
             min_marker.color.b = rgba[2]
             min_marker.color.a = 0.5
             
-            #metrics_markers.markers.append(min_marker)
+            metrics_markers.markers.append(min_marker)
             
             # Max radius circle
             max_radius = metrics.avg_radius + radius_range
@@ -390,70 +390,67 @@ class rivzVisualizer(Node):
             max_marker.color.b = rgba[2]
             max_marker.color.a = 0.5
             
-            #metrics_markers.markers.append(max_marker)
+            metrics_markers.markers.append(max_marker)
             
             # 3. Draw bearing sector (angular range)
-            if metrics.bearing_max > metrics.bearing_min:
-                sector_marker = Marker()
-                sector_marker.header.frame_id = 'map'
-                sector_marker.header.stamp = stamp
-                sector_marker.ns = 'particle_bearing'
-                sector_marker.id = marker_id
-                marker_id += 1
-                sector_marker.type = Marker.LINE_LIST
-                sector_marker.action = Marker.ADD
+            
+            sector_marker = Marker()
+            sector_marker.header.frame_id = 'map'
+            sector_marker.header.stamp = stamp
+            sector_marker.ns = 'particle_bearing'
+            sector_marker.id = marker_id
+            marker_id += 1
+            sector_marker.type = Marker.LINE_LIST
+            sector_marker.action = Marker.ADD
+            
+            # Convert bearing to radians
+            b_start = metrics.bearing_start
+            b_end   = metrics.bearing_end
+            
+            span_deg = (b_end - b_start) % 360
+            
+            b_start_rad = np.radians(b_start)
+            span_rad    = np.radians(span_deg)
+            
+            # Draw sector lines
+            sector_lines = []
+            vis_r = max(0.1, metrics.avg_radius)
+            
+            # Center to min bearing edge
+            c = Point(x=sensor_pos_x, y=sensor_pos_y, z=0.15)
+            e1 = Point(
+                x=sensor_pos_x + vis_r * np.sin(b_start_rad),
+                y=sensor_pos_y + vis_r * np.cos(b_start_rad),
+                z=0.15
+            )
+            sector_lines.extend([c, e1])
+            
+            # Center to max bearing edge
+            end_rad = b_start_rad + span_rad      # CHANGED
+            e2 = Point(
+                x=sensor_pos_x + vis_r * np.sin(end_rad),
+                y=sensor_pos_y + vis_r * np.cos(end_rad),
+                z=0.15
+            )
+            sector_lines.extend([c, e2])
+            
+            # Arc between min and max bearing
+            arc_steps = 20
+            for i in range(arc_steps):
+                a1 = b_start_rad + span_rad * (i    ) / arc_steps
+                a2 = b_start_rad + span_rad * (i + 1) / arc_steps
+                p1 = Point(
+                    x=sensor_pos_x + vis_r * np.sin(a1),
+                    y=sensor_pos_y + vis_r * np.cos(a1),
+                    z=0.15
+                )
+                p2 = Point(
+                    x=sensor_pos_x + vis_r * np.sin(a2),
+                    y=sensor_pos_y + vis_r * np.cos(a2),
+                    z=0.15
+                )
                 
-                # Convert bearing to radians
-                bearing_min_rad = np.radians(metrics.bearing_min)
-                bearing_max_rad = np.radians(metrics.bearing_max)
-                
-                # Draw sector lines
-                sector_lines = []
-                visualization_radius = max(0.1, metrics.avg_radius)
-                
-                # Center to min bearing edge
-                start_point = Point()
-                start_point.x = sensor_pos_x
-                start_point.y = sensor_pos_y
-                start_point.z = 0.15
-                
-                end_point_min = Point()
-                end_point_min.x = sensor_pos_x + visualization_radius * np.sin(bearing_min_rad)
-                end_point_min.y = sensor_pos_y + visualization_radius * np.cos(bearing_min_rad)
-                end_point_min.z = 0.15
-                
-                sector_lines.extend([start_point, end_point_min])
-                
-                # Center to max bearing edge
-                start_point2 = Point()
-                start_point2.x = sensor_pos_x
-                start_point2.y = sensor_pos_y
-                start_point2.z = 0.15
-                
-                end_point_max = Point()
-                end_point_max.x = sensor_pos_x + visualization_radius * np.sin(bearing_max_rad)
-                end_point_max.y = sensor_pos_y + visualization_radius * np.cos(bearing_max_rad)
-                end_point_max.z = 0.15
-                
-                sector_lines.extend([start_point2, end_point_max])
-                
-                # Arc between min and max bearing
-                arc_steps = 20
-                for i in range(arc_steps):
-                    angle1 = bearing_min_rad + (bearing_max_rad - bearing_min_rad) * i / arc_steps
-                    angle2 = bearing_min_rad + (bearing_max_rad - bearing_min_rad) * (i + 1) / arc_steps
-                    
-                    point1 = Point()
-                    point1.x = sensor_pos_x + visualization_radius * np.sin(angle1)
-                    point1.y = sensor_pos_y + visualization_radius * np.cos(angle1)
-                    point1.z = 0.15
-                    
-                    point2 = Point()
-                    point2.x = sensor_pos_x + visualization_radius * np.sin(angle2)
-                    point2.y = sensor_pos_y + visualization_radius * np.cos(angle2)
-                    point2.z = 0.15
-                    
-                    sector_lines.extend([point1, point2])
+                sector_lines.extend([p1, p2])
                 
                 sector_marker.points = sector_lines
                 sector_marker.scale.x = 0.05
