@@ -126,7 +126,7 @@ class DroneManager(Node):
         self.declare_parameter('system_id', 1)
         self.declare_parameter('system_id_list', [1,2,3,4])
         self.declare_parameter('formation_side_length', 6.0)
-        self.declare_parameter('mission_zlevel', 5.0)
+        self.declare_parameter('mission_zlevel', 3.0)
         # Formation parameters
         self.declare_parameter("formation_k_scale", 0.0)
         self.declare_parameter("formation_k_pair", 4.0)
@@ -139,7 +139,7 @@ class DroneManager(Node):
         self.declare_parameter("repulsion_sigma", 5.0)  # Sigma for repulsion force
         # Target parameters
         self.declare_parameter("target_k", 2.0)  # Target force constant
-        self.declare_parameter("weight_table", [10,1,1, 10,2,0, 10,2,2])  # Weights for repulsion, target, and formation
+        self.declare_parameter("weight_table", [10,2,0, 10,2,2])  # Weights for repulsion, target, and formation
         # Particle filter parameters
         self.declare_parameter("num_particles", 1000)  # Number of particles for the particle filter
         self.declare_parameter("uwb_threshold", 10.0)  # Threshold for UWB ranging in meters
@@ -197,7 +197,7 @@ class DroneManager(Node):
                 self.get_logger().info(f"UWB threshold set to {self.uwb_threshold} meters")
             elif param.name == 'weight_table':
                 weight_table = param.value
-                self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
+                self.weight_table = [(weight_table[i], weight_table[i+1]) for i in range(0, len(weight_table), 2)]
                 self.get_logger().info(f"Weight table updated: {self.weight_table}")
             elif param.name == 'timer_ocm_period':
                 self.timer_ocm.cancel()
@@ -288,7 +288,7 @@ class DroneManager(Node):
         if self.uwb_sub_msg.range != -1:
             distance = self.uwb_sub_msg.range / 1000.0
             height   = self.monitoring_msg.pos_z
-            square_diff = max(distance**2 - height**2, 0)
+            square_diff = max(distance**2 - height**2, 0.001)
             uwb_pub_msg.range              = int(math.sqrt(square_diff) * 1000)
         else:
             uwb_pub_msg.range                  = self.uwb_sub_msg.range
@@ -314,10 +314,13 @@ class DroneManager(Node):
             self.calculate_takeoff_offset()
             return
         self.update_uwb_data_list()
-        self.particle_step()
-        if len(self.uwb_data_list) >= 3:
-            self.share_target()
-            #self.share_particles()
+        if len(self.uwb_data_list) <= 0:
+            self.particle_filter.reset_particles()
+        else:
+            self.particle_step()
+        if len(self.uwb_data_list) >= 1:
+            #self.share_target()
+            self.share_particles()
         self.formation_move_agent()
         if self.mode_handler.is_in_mode(Mode.COLLECTION):
             self.handle_COLLECTION()
@@ -376,8 +379,7 @@ class DroneManager(Node):
             self.publish_particle_cloud(self.particle)
             self.publish_particle_distribution()
         if self.mode_handler.is_in_mode(Mode.SEARCH):
-            self.change_mode(Mode.HAVE_TARGET)
-            
+            self.change_mode(Mode.HAVE_TARGET)  
     
     def share_target(self):
         ## It should run only when the mode is HAVE_TARGET ##
@@ -407,14 +409,18 @@ class DroneManager(Node):
                 ref_llh = [self.monitoring_msg.ref_lat,
                    self.monitoring_msg.ref_lon,
                    self.monitoring_msg.ref_alt]
-                sensor_position = LLH2NED([value.sensor_pos[0], value.sensor_pos[1], 0], ref_llh)
-                value.senor_pos = sensor_position
-                particle_distribution.append(value)
+                sensor_position = LLH2NED([value.sensor_pos.x, value.sensor_pos.y, 0], ref_llh)
+                metrics = [
+                    [sensor_position[0], sensor_position[1]],
+                    value.avg_radius,
+                    value.bearing_start,
+                    value.bearing_end,
+                    value.radius_std,
+                ]
+                particle_distribution.append(metrics)
                 # self.get_logger().info(f"target:, {target}")
         if len(particle_distribution):
             self.particle_filter.inject_from_metrics([t for t in particle_distribution])
-            for key, value in self.agent_target_dic.items():
-                self.agent_target_dic[key] = None
 
     def update_uwb_data_list(self):
         self.uwb_data_list.clear()
@@ -481,7 +487,7 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
-        setpoint.yaw = math.atan2(dir_safe[1], dir_safe[0])
+        setpoint.yaw = math.atan2(self.target[1] - current_pos[1], self.target[0] - current_pos[0])
         direction = TrajectorySetpointMsg()
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
         self.total_gradient_publisher.publish(direction)
@@ -499,16 +505,8 @@ class DroneManager(Node):
             return
         
     def compute_weight(self):
-        if self.have_target:
-            current_pos = np.array([self.monitoring_msg.pos_x,
-                       self.monitoring_msg.pos_y])
-            target_pos = np.array([self.target[0],
-                          self.target[1]])
-            dist = np.linalg.norm(current_pos - target_pos)
-            if dist > self.target_bound:
-                return self.weight_table[1]
-            else:
-                return self.weight_table[2]
+        if len(self.uwb_data_list) >= 4:
+            return self.weight_table[1]
         else:
             return self.weight_table[0]
 
@@ -690,12 +688,6 @@ class DroneManager(Node):
             self.agent_particle_metrics_dic[f'{sys_id}'] = msg
         return callback
     
-    def make_particle_callback(self, sys_id):
-        self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Subscriber")
-        def callback(msg):
-            self.agent_particle_distribution_dic[f'{sys_id}'] = msg
-        return callback
-    
     def make_particle_distribution_callback(self, sys_id):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Particle Distribution Subscriber")
         def callback(msg):
@@ -738,16 +730,16 @@ class DroneManager(Node):
             return
             
         # Unpack metrics
-        sensor_pos, avg_radius, bearing_min, bearing_max, radius_std = metrics
-        
+        sensor_pos, avg_radius, bearing_start, bearing_end, radius_std = metrics
+
         # Create ParticleDistribution message
         distribution_msg = ParticleDistribution()
         distribution_msg.sensor_pos.x = float(sensor_pos[0])
         distribution_msg.sensor_pos.y = float(sensor_pos[1])
         distribution_msg.sensor_pos.z = 0.0
         distribution_msg.avg_radius = float(avg_radius)
-        distribution_msg.bearing_min = float(bearing_min)
-        distribution_msg.bearing_max = float(bearing_max)
+        distribution_msg.bearing_start = float(bearing_start)
+        distribution_msg.bearing_end = float(bearing_end)
         distribution_msg.radius_std = float(radius_std)
         
         # Publish the message
