@@ -10,7 +10,7 @@ from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv
     VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
 from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, \
     OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, \
-    VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+    VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg, ActuatorMotors
 # uwb_msgs
 from uwb_msgs.msg import Ranging
 from nlink_parser_ros2_interfaces.msg import LinktrackNodeframe2
@@ -47,6 +47,7 @@ class DroneManager(Node):
 
         # --- Internal Status Variables ---
         self.monitoring_msg      = Monitoring()
+        self.motor_msg           = ActuatorMotors()
         self.uwb_sub_msg         = LinktrackNodeframe2()
         self.global_path         = []
         self.global_path_threshold = 0.1
@@ -70,6 +71,11 @@ class DroneManager(Node):
         self.monitoring_publisher = self.create_publisher(
             Monitoring,
             f"{self.topic_prefix_manager}out/monitoring",
+            qos_profile_sensor_data
+        )
+        self.motor_publisher = self.create_publisher(
+            ActuatorMotors,
+            f"{self.topic_prefix_manager}out/actuator_motors",
             qos_profile_sensor_data
         )
         self.vehicle_command_publisher = self.create_publisher(
@@ -100,6 +106,12 @@ class DroneManager(Node):
             Monitoring,
             f"{self.topic_prefix_fmu}out/monitoring",
             self.monitoring_callback,
+            qos_profile_sensor_data
+        )
+        self.motor_subscriber = self.create_subscription(
+            ActuatorMotors,
+            f"{self.topic_prefix_fmu}out/actuator_motors",
+            self.motor_callback,
             qos_profile_sensor_data
         )
         self.timestamp_subscriber = self.create_subscription(
@@ -303,6 +315,7 @@ class DroneManager(Node):
         self.timer_mission =        self.create_timer(timer_period_mission, self.timer_mission_callback)
         self.timer_ocm =            self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         self.timer_monitoring =     self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
+        self.timer_motor =          self.create_timer(1.0, self.timer_motor_pub_callback)
 
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
@@ -398,6 +411,9 @@ class DroneManager(Node):
 
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
+    
+    def timer_motor_pub_callback(self):
+        self.motor_publisher.publish(self.motor_msg)
 
     ### Mission Progress ####
     def timer_mission_callback(self):
@@ -419,6 +435,9 @@ class DroneManager(Node):
     ## Sub callback ##
     def monitoring_callback(self, msg: Monitoring):
         self.monitoring_msg = msg
+    
+    def motor_callback(self, msg: ActuatorMotors):
+        self.motor_msg = msg
 
     def uwb_msg_callback(self, msg: LinktrackNodeframe2):
         self.uwb_sub_msg = msg
