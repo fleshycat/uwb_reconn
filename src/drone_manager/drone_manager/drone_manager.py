@@ -584,10 +584,11 @@ class DroneManager(Node):
             self.change_mode(Mode.CONVERGED)
         if all(v.seq == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
             self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
-            if self.system_id == self.system_id_list[0]:
-                self.change_mode(Mode.COLLECTION, delay_seconds=1.0)
-            else:
-                self.change_mode(Mode.RETURN, delay_seconds=3.0)
+            # if self.system_id == self.system_id_list[0]:
+            #     self.change_mode(Mode.COLLECTION, delay_seconds=1.0)
+            # else:
+            #     self.change_mode(Mode.RETURN, delay_seconds=3.0)
+            self.change_mode(Mode.RETURN, delay_seconds=3.0)
             return
     
     def compute_weight(self):
