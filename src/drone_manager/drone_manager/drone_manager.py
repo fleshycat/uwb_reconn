@@ -659,15 +659,37 @@ class DroneManager(Node):
     ## Publisher ##
     def publish_target(self, target):
         target = TrajectorySetpointMsg()
-        target_pos_ned = [self.target[0],
-                          self.target[1],
-                          0.1]
-        ref_llh = [self.monitoring_msg.ref_lat,
-                   self.monitoring_msg.ref_lon,
-                   self.monitoring_msg.ref_alt]
-        target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
-        target.position[0] = target_pos_llh[0]
-        target.position[1] = target_pos_llh[1]
+        
+        # timestamp 설정
+        target.timestamp = self.get_clock().now().nanoseconds
+        
+        # target이 유효한지 확인
+        if not self.have_target or len(self.target) < 2:
+            # target이 없으면 기본값 사용 (ref_LLH 위치)
+            ref_llh = [self.monitoring_msg.ref_lat,
+                       self.monitoring_msg.ref_lon,
+                       self.monitoring_msg.ref_alt]
+            target.position = [ref_llh[0], ref_llh[1], ref_llh[2]]
+            self.get_logger().info(f"DroneManager {self.system_id}: Using ref_LLH (no target estimate)")
+        else:
+            # 실제 target estimate 사용
+            target_pos_ned = [self.target[0],
+                              self.target[1],
+                              0.1]
+            ref_llh = [self.monitoring_msg.ref_lat,
+                       self.monitoring_msg.ref_lon,
+                       self.monitoring_msg.ref_alt]
+            target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
+            target.position = [target_pos_llh[0], target_pos_llh[1], target_pos_llh[2]]
+            self.get_logger().info(f"DroneManager {self.system_id}: Using particle filter estimate: NED=[{self.target[0]:.3f}, {self.target[1]:.3f}]")
+        
+        # 나머지 값들은 기본값으로 설정 (0으로 초기화)
+        target.velocity = [0.0, 0.0, 0.0]
+        target.acceleration = [0.0, 0.0, 0.0]
+        target.jerk = [0.0, 0.0, 0.0]
+        target.yaw = 0.0
+        target.yawspeed = 0.0
+        
         self.target_publisher.publish(target)
 
     def publish_particle_cloud(self, particles: np.ndarray):

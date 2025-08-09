@@ -93,7 +93,7 @@ class rivzVisualizer(Node):
         return callback
 
     def publish_rviz_topic(self):
-        self.publish_target()
+        # self.publish_target()  # 각 드론의 target estimate 숨김
         self.publish_agents()
         self.publish_tag()
         self.publish_gradient()

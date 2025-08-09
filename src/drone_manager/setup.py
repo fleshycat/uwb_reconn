@@ -21,6 +21,9 @@ setup(
     entry_points={
         'console_scripts': [
             'drone_manager = drone_manager.drone_manager:main',
+            'motor_monitor = drone_manager.motor_monitor:main',
+            'motor_publisher = drone_manager.motor_publisher:main',
+            'target_monitor = drone_manager.target_monitor:main',
         ],
     },
 )
