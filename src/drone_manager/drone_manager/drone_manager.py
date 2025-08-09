@@ -4,7 +4,7 @@ from rclpy.qos import qos_profile_sensor_data
 from rcl_interfaces.msg import SetParametersResult
 
 from px4_msgs.srv import ModeChange, TrajectorySetpoint as TrajectorySetpointSrv, VehicleCommand as VehicleCommandSrv, GlobalPath as GlobalPathSrv
-from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg
+from px4_msgs.msg import SuvMonitoring, LogMessage, Monitoring, VehicleStatus, OffboardControlMode, TrajectorySetpoint as TrajectorySetpointMsg, VehicleCommandAck, VehicleCommand as VehicleCommandMsg, DistanceSensor, GlobalPath as GlobalPathMsg, ActuatorMotors
 from uwb_msgs.msg import RangingDiff, Ranging
 
 ## only for simulation ##
@@ -36,15 +36,16 @@ class DroneManager(Node):
         self.topic_prefix_manager = f"drone{self.system_id}/manager/"  #"drone1/manager/"
         self.topic_prefix_fmu = f"drone{self.system_id}/fmu/"          #"drone1/fmu/"
         self.topic_prefix_uwb = f"drone{self.system_id}/uwb/ranging"
-        
+
         self.monitoring_msg = Monitoring()
+        self.motor_msg = ActuatorMotors()
         self.uwb_sub_msg = RangingDiff()
         self.global_path = []
         self.global_path_threshold = 0.1
         self.takeoff_offset_dic = {}
         self.agent_uwb_range_dic = {f'{i}':Ranging() for i in self.system_id_list}
         self.agent_target_dic = {}
-        
+
         self.direction = TrajectorySetpointMsg()
 
         ## Publisher ##
@@ -56,6 +57,7 @@ class DroneManager(Node):
         self.monitoring_publisher = self.create_publisher(Monitoring, f'{self.topic_prefix_manager}out/monitoring', qos_profile_sensor_data)
         self.total_gradient_publisher = self.create_publisher(TrajectorySetpointMsg, f'{self.topic_prefix_manager}out/gradient', qos_profile_sensor_data)
         self.vehicle_command_publisher = self.create_publisher(VehicleCommandMsg, f'{self.topic_prefix_fmu}in/vehicle_command', qos_profile_sensor_data)
+        self.motor_publisher = self.create_publisher(ActuatorMotors, f'{self.topic_prefix_manager}out/actuator_motors', qos_profile_sensor_data)
 
         ## Subscriber ##
         self.uwb_subscriber = self.create_subscription(RangingDiff, self.topic_prefix_uwb, self.uwb_msg_callback, qos_profile_sensor_data)
@@ -72,10 +74,16 @@ class DroneManager(Node):
             for i in self.system_id_list if i != self.system_id
         ]
         self.add_on_set_parameters_callback(self.set_parameters_callback)
-        
+        self.motor_subscriber = self.create_subscription(
+            ActuatorMotors,
+            f'{self.topic_prefix_fmu}out/actuator_motors',
+            self.motor_callback,
+            qos_profile_sensor_data
+        )
+
         ## OCM Msg ##
         self.ocm_msg = OffboardControlMode()
-        
+
         ## Potential Field ##
         self.desired_formation = self.get_desired_formation(self.formation_side_length)
         self.f_formation = FormationForce(desired_positions = self.desired_formation,
@@ -92,7 +100,7 @@ class DroneManager(Node):
         self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
         weight_table = self.get_parameter("weight_table").get_parameter_value().integer_array_value
         self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
-        
+
         ## Particle Filter ##
         self.num_particles = self.get_parameter("num_particles").get_parameter_value().integer_value
         self.particle_filter = ParticleFilter(num_particles=self.num_particles)
@@ -105,15 +113,15 @@ class DroneManager(Node):
         self.mode_handler = ModeHandler()
         self.handle_flag = False
         self.collection_step = 0
-        
+
         ## Timer ##
         self.timer_start()
-        
+
         self.gcs_timestamp = Header()
         self.init_timestamp = self.get_clock().now().to_msg().sec
-        
+
         self.initiate_drone_manager()
-    
+
     def drone_manager_delcare_parameters(self):
         # Declare parameters for the drone manager
         self.declare_parameter('system_id', 1)
@@ -143,6 +151,7 @@ class DroneManager(Node):
         self.declare_parameter("timer_mission_period", 0.05)  # Timer period for mission in seconds 20hz
         self.declare_parameter("timer_monitoring_period", 1.0)  # Timer period for monitoring in seconds 1hz
 
+
     def set_parameters_callback(self, params):
         result = SetParametersResult()
         for param in params:
@@ -167,7 +176,7 @@ class DroneManager(Node):
             elif param.name == 'formation_k_z':
                 self.f_formation.k_z = param.value
                 self.get_logger().info(f"Formation k_z set to {self.f_formation.k_z}")
-            elif param.name == 'formation_tolerance':   
+            elif param.name == 'formation_tolerance':
                 self.tol = param.value
                 self.get_logger().info(f"Formation tolerance set to {self.tol}")
             elif param.name == 'repulsion_c_rep':
@@ -215,19 +224,20 @@ class DroneManager(Node):
 
         result.successful = True
         return result
-    
+
     def timer_start(self):
         self.get_logger().info("DroneManager Timer Started")
-        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value  
-        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value  
-        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value  
-        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value  
-        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value  
+        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value
+        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value
+        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value
+        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value
+        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value
         self.timer_uwb =            self.create_timer(timer_period_uwb, self.timer_uwb_callback)
         self.timer_global_path =    self.create_timer(timer_period_global_path, self.timer_global_path_callback)
         self.timer_mission =        self.create_timer(timer_period_mission, self.timer_mission_callback)
         self.timer_ocm =            self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         self.timer_monitoring =     self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
+        self.timer_motor =          self.create_timer(1.0, self.timer_motor_pub_callback)
 
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
@@ -242,7 +252,7 @@ class DroneManager(Node):
         msg = "Formation Desired Positions:\n" + "\n".join(f"  {pos}" for pos in desired_formation)
         self.get_logger().info(msg)
         return desired_formation
-    
+
     def initiate_drone_manager(self):
         self.change_mode(Mode.QHAC)
         self.change_ocm_msg_position()
@@ -251,7 +261,7 @@ class DroneManager(Node):
     ## Timer callback ##
     def timer_ocm_callback(self):
         self.ocm_publisher.publish(self.ocm_msg)
-    
+
     def timer_global_path_callback(self):
         if len(self.global_path) == 0 or not self.mode_handler.is_in_mode(Mode.SEARCH):
             return
@@ -267,10 +277,10 @@ class DroneManager(Node):
             self.traj_setpoint_publisher.publish(traj_setpoint_msg)
             if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
                                     target_pos = [self.global_path[0][0], self.global_path[0][1]]
-                                    ) <= self.global_path_threshold:    
+                                    ) <= self.global_path_threshold:
                 self.global_path.pop(0)
                 self.get_logger().error("WayPoint Arrived")
-    
+
     def timer_uwb_callback(self):
         uwb_pub_msg = Ranging()
         uwb_pub_msg.header.frame_id            = "map"
@@ -293,13 +303,17 @@ class DroneManager(Node):
         uwb_pub_msg.anchor_pose.position.z     = self.monitoring_msg.pos_z
         uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
-        uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-        
+        uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
+
         self.uwb_ranging_publisher.publish(uwb_pub_msg)
         self.agent_uwb_range_dic[f'{self.system_id}'] = uwb_pub_msg
-    
+
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
+
+
+    def timer_motor_pub_callback(self):
+        self.motor_publisher.publish(self.motor_msg)
 
     #### Mission Progress ####
     def timer_mission_callback(self):
@@ -315,16 +329,19 @@ class DroneManager(Node):
             self.handle_COLLECTION()
         if self.mode_handler.is_in_mode(Mode.RETURN):
             self.handle_RETURN()
-        if self.mode_handler.is_in_mode(Mode.COMPLETED):  
-            self.handle_COMPLETED()        
+        if self.mode_handler.is_in_mode(Mode.COMPLETED):
+            self.handle_COMPLETED()
 
     ## Sub callback ##
-    def monitoring_callback(self, msg):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+    def motor_callback(self, msg):
+        self.motor_msg = msg
+
+    def monitoring_callback(self, msg):
         self.monitoring_msg = msg
-        
+
     def uwb_msg_callback(self, msg):
         self.uwb_sub_msg = msg
-        
+
     def global_path_callback(self, msg):
         self.get_logger().error("handle_global_path subscription called")
         self.global_path = []
@@ -335,7 +352,7 @@ class DroneManager(Node):
                 point.position[2],
             ])
             self.mission_zlevel = - point.position[2]
-    
+
     def timestamp_callback(self, msg):
         self.get_logger().info("System Time Synchronize.")
         self.gcs_timestamp = msg
@@ -345,7 +362,7 @@ class DroneManager(Node):
         self.change_mode(Mode(msg.data))
 
     ## Particle Filter ##
-    def particle_step(self):        
+    def particle_step(self):
         ## It should run only when the mode is SERACH or HAVE_TARGET ##
         if not (self.mode_handler.is_in_mode(Mode.SEARCH) or self.mode_handler.is_in_mode(Mode.HAVE_TARGET) or self.mode_handler.is_in_mode(Mode.CONVERGED)):
             return
@@ -353,14 +370,14 @@ class DroneManager(Node):
             if not self.mode_handler.is_in_mode(Mode.SEARCH):
                 self.change_mode(Mode.SEARCH)
             return
-        
+
         sensor_positions = [row[0] for row in self.uwb_data_list]
         measurements = [row[1] for row in self.uwb_data_list]
         noise_stds = [row[2] for row in self.uwb_data_list]
-        
+
         self.particle_filter.step(sensor_positions, measurements, noise_stds, [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y])
         self.particle = self.particle_filter.particles
-        
+
         self.target = self.particle_filter.estimate()
         estimate = [self.target[0], self.target[1]]
         self.publish_target(estimate)
@@ -368,8 +385,8 @@ class DroneManager(Node):
             self.publish_particle_cloud(self.particle)
         if self.mode_handler.is_in_mode(Mode.SEARCH):
             self.change_mode(Mode.HAVE_TARGET)
-            
-    
+
+
     def share_target(self):
         ## It should run only when the mode is HAVE_TARGET ##
         if not self.mode_handler.is_in_mode(Mode.HAVE_TARGET) and not self.mode_handler.is_in_mode(Mode.CONVERGED):
@@ -398,7 +415,7 @@ class DroneManager(Node):
                      value.range / 1000,
                      value.range / 1000 * 0.03,
                 ])
-    
+
     ## Formation & Repulsion
     def formation_move_agent(self):
         ## It should run only when the mode is HAVE_TARGET ##
@@ -406,7 +423,7 @@ class DroneManager(Node):
             return
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
-            idx = int(key)-1 
+            idx = int(key)-1
             agents_pos[idx] = [
                 value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
@@ -442,7 +459,7 @@ class DroneManager(Node):
         result_direc = self.set_direction(total_grad)
         speed = min(1000, np.linalg.norm(total_grad))
         dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
-        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        speed_safe = 0.0 if not np.isfinite(speed) else speed
         current_pos=np.array([
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
@@ -469,7 +486,7 @@ class DroneManager(Node):
             else:
                 self.change_mode(Mode.RETURN, delay_seconds=4.0)
             return
-        
+
     def compute_weight(self):
         if self.have_target:
             current_pos = np.array([self.monitoring_msg.pos_x,
@@ -578,7 +595,7 @@ class DroneManager(Node):
             return
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
-            idx = int(key)-1 
+            idx = int(key)-1
             agents_pos[idx] = [
                 value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
@@ -609,7 +626,7 @@ class DroneManager(Node):
         result_direc = self.set_direction(total_grad)
         speed = min(1000, np.linalg.norm(total_grad))
         dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
-        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        speed_safe = 0.0 if not np.isfinite(speed) else speed
         current_pos=np.array([
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
@@ -625,7 +642,7 @@ class DroneManager(Node):
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
         self.total_gradient_publisher.publish(direction)
         self.traj_setpoint_publisher.publish(setpoint)
-        
+
         remain_distance = np.linalg.norm(
             np.array([self.monitoring_msg.pos_x, self.monitoring_msg.pos_y, self.monitoring_msg.pos_z]) -
             np.array([collection_target[0], collection_target[1], collection_target[2]])
@@ -649,20 +666,20 @@ class DroneManager(Node):
         def callback(msg):
             self.agent_uwb_range_dic[f'{sys_id}'] = msg
         return callback
-    
+
     def make_target_callback(self, sys_id):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
         def callback(msg):
             self.agent_target_dic[f'{sys_id}'] = msg
         return callback
-    
+
     ## Publisher ##
     def publish_target(self, target):
         target = TrajectorySetpointMsg()
-        
+
         # timestamp 설정
         target.timestamp = self.get_clock().now().nanoseconds
-        
+
         # target이 유효한지 확인
         if not self.have_target or len(self.target) < 2:
             # target이 없으면 기본값 사용 (ref_LLH 위치)
@@ -682,14 +699,14 @@ class DroneManager(Node):
             target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
             target.position = [target_pos_llh[0], target_pos_llh[1], target_pos_llh[2]]
             self.get_logger().info(f"DroneManager {self.system_id}: Using particle filter estimate: NED=[{self.target[0]:.3f}, {self.target[1]:.3f}]")
-        
+
         # 나머지 값들은 기본값으로 설정 (0으로 초기화)
         target.velocity = [0.0, 0.0, 0.0]
         target.acceleration = [0.0, 0.0, 0.0]
         target.jerk = [0.0, 0.0, 0.0]
         target.yaw = 0.0
         target.yawspeed = 0.0
-        
+
         self.target_publisher.publish(target)
 
     def publish_particle_cloud(self, particles: np.ndarray):
@@ -739,7 +756,7 @@ class DroneManager(Node):
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt((current_pos[0] - target_pos[0])**2 + (current_pos[1] - target_pos[1])**2)
-        
+
     def change_mode(self, mode, delay_seconds= None):
         if delay_seconds is None:
             result = self.mode_handler.change_mode(mode)
@@ -754,18 +771,18 @@ class DroneManager(Node):
             else:
                 self.get_logger().info(f"DroneManager {self.system_id} : Mode Change Delay Start... {Mode(mode)} | {delay_seconds} seconds")
 
-# WGS-84 
-a = 6378137.0 
-f = 1.0 / 298.257223563  
-e2 = 2 * f - f * f 
- 
+# WGS-84
+a = 6378137.0
+f = 1.0 / 298.257223563
+e2 = 2 * f - f * f
+
 def NED2LLH(NED, ref_LLH):
     lat_ref = np.deg2rad(ref_LLH[0])
     lon_ref = np.deg2rad(ref_LLH[1])
-    
+
     sin_lat_ref = np.sin(lat_ref)
     cos_lat_ref = np.cos(lat_ref)
-    
+
     N_ref = a / np.sqrt(1 - e2 * sin_lat_ref**2)
 
     dlat = NED[0] / N_ref
@@ -774,7 +791,7 @@ def NED2LLH(NED, ref_LLH):
     lat = lat_ref + dlat
     lon = lon_ref + dlon
     h = ref_LLH[2] + NED[2]
-    
+
     return [np.rad2deg(lat), np.rad2deg(lon), h]
 
 def LLH2NED(LLH, ref_LLH):
@@ -782,10 +799,10 @@ def LLH2NED(LLH, ref_LLH):
     lon_ref = np.deg2rad(ref_LLH[1])
     lat = np.deg2rad(LLH[0])
     lon = np.deg2rad(LLH[1])
-    
+
     sin_lat_ref = np.sin(lat_ref)
     cos_lat_ref = np.cos(lat_ref)
-    
+
     N_ref = a / np.sqrt(1 - e2 * sin_lat_ref**2)
 
     dlat = lat - lat_ref
@@ -794,9 +811,9 @@ def LLH2NED(LLH, ref_LLH):
     NED_N = dlat * N_ref
     NED_E = dlon * N_ref * cos_lat_ref
     NED_D = LLH[2] - ref_LLH[2]
-    
+
     return [NED_N, NED_E, NED_D]
-     
+
 def main(args=None):
     rclpy.init(args=args)
 
@@ -809,6 +826,6 @@ def main(args=None):
     # when the garbage collector destroys the node object)
     dronemanager.destroy_node()
     rclpy.shutdown()
-    
+
 if __name__ == '__main__':
     main()
