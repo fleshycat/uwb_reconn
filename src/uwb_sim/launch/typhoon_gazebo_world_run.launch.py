@@ -206,7 +206,14 @@ def launch_setup(context, *args, **kwargs):
         arguments=["-d", rviz_config_file],
         parameters=[{'use_sim_time': True}],
     )
-
+    
+    yolo_recognition_node = Node(
+        package='yolobot_recognition',
+        executable='yolov8_ros2_pt.py',
+        name='yolo_recognition',
+        output='screen',
+    )
+    
     nodes_to_start = [
         px4_lat,
         px4_lon,
@@ -218,8 +225,9 @@ def launch_setup(context, *args, **kwargs):
         gazebo_node,
         *drone_process_list,
         # tag_pos_node,
-        rviz_visualizer,
-        rviz_node,
+        #rviz_visualizer,
+        #rviz_node,
+        yolo_recognition_node,
     ]
 
     return nodes_to_start
