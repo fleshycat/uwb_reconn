@@ -10,7 +10,7 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import CameraInfo, Image
 from geometry_msgs.msg import PointStamped
 from visualization_msgs.msg import Marker, MarkerArray
-from yolov8_msgs.msg import Yolov8Inference, InferenceResult  # 고정 import
+from yolov8_msgs.msg import Yolov8Inference  # 고정 import
 from px4_msgs.msg import Monitoring, TrajectorySetpoint  # 모니터링 메시지 타입
 
 def rpy_deg_to_R_zyx(roll_deg: float, pitch_deg: float, yaw_deg: float) -> np.ndarray:
@@ -32,13 +32,13 @@ class BBoxToGroundNED(Node):
     def __init__(self):
         super().__init__('bbox_to_ground_ned')
         # Parameters
-        self.declare_parameter('camera_info_topic', '/recon_1/camera/camera_info')
+        self.declare_parameter('camera_info_topic', '/camera/camera/color/camera_info')
         self.declare_parameter('bbox_topic', '/Yolov8_Inference_1')  # 필요 시 실행 시점에 변경
         self.declare_parameter('monitor_topic', '/drone1/fmu/out/monitoring')
         self.declare_parameter('tag_topic', '/drone1/jfi/in/target')
         self.declare_parameter('class_filter', 'airplane')
         self.declare_parameter('cam_roll_deg', 0.0)
-        self.declare_parameter('cam_pitch_deg', 0.0)
+        self.declare_parameter('cam_pitch_deg', 45.0)
         self.declare_parameter('cam_yaw_deg', 0.0)
         self.declare_parameter('D_ground', 0.0)
 
@@ -46,15 +46,15 @@ class BBoxToGroundNED(Node):
         self.declare_parameter('field_pos_y', 'pos_y')
         self.declare_parameter('field_pos_z', 'pos_z')
 
-        self.declare_parameter('field_ref_lat', 'ref_lat')
+        self.declare_parameter('field_ref_l at', 'ref_lat')
         self.declare_parameter('field_ref_lon', 'ref_lon')
         self.declare_parameter('field_ref_alt', 'ref_alt')
 
-        self.declare_parameter('field_roll_deg', 'roll_deg')
-        self.declare_parameter('field_pitch_deg', 'pitch_deg')
-        self.declare_parameter('field_yaw_deg', 'yaw_deg')
+        self.declare_parameter('field_roll_deg', 'roll')
+        self.declare_parameter('field_pitch_deg', 'pitch')
+        self.declare_parameter('field_yaw_deg', 'head')
 
-        self.declare_parameter('image_threshold', 1)
+        self.declare_parameter('image_threshold', 20.0)
 
         # Load
         self.cam_info_topic = self.get_parameter('camera_info_topic').get_parameter_value().string_value
@@ -81,7 +81,7 @@ class BBoxToGroundNED(Node):
         self.field_pitch = self.get_parameter('field_pitch_deg').get_parameter_value().string_value
         self.field_yaw   = self.get_parameter('field_yaw_deg').get_parameter_value().string_value
 
-        self.image_threshold = self.get_parameter('image_threshold').get_parameter_value().integer_value
+        self.image_threshold = float(self.get_parameter('image_threshold').get_parameter_value().double_value)
 
         # State
         self.K: Optional[np.ndarray] = None
@@ -91,6 +91,8 @@ class BBoxToGroundNED(Node):
         self.C_ned = np.zeros(3, dtype=float)  # [N,E,D]
         self.T_ned = np.zeros(3, dtype=float)  # [N,E,D]
         self.R_nb  = np.eye(3)
+        self.flag = False
+
         # QoS
         best_effort = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -99,14 +101,15 @@ class BBoxToGroundNED(Node):
         )
         # Subs (고정 타입)
         self.create_subscription(CameraInfo, self.cam_info_topic, self.cb_cam_info, 10)
-        self.create_subscription(Image, '/camera/camera/color/image_raw', self.)
+        # self.create_subscription(Image, '/camera/camera/color/image_raw', self.)
         self.create_subscription(Yolov8Inference, self.bbox_topic, self.cb_bboxes, best_effort)
         self.create_subscription(Monitoring, self.monitor_topic, self.cb_monitor, best_effort)
         self.create_subscription(TrajectorySetpoint, self.tag_topic, self.cb_tag, best_effort)
+        self.create_subscription(Image, "/inference_result_1", self.cb_image, best_effort)
         # Pubs
         self.pub_points  = self.create_publisher(PointStamped, '/ground_objects/points', 10)
         self.pub_markers = self.create_publisher(MarkerArray, '/ground_objects/markers', 10)
-        self.pub_images = self.create_publisher(Image, '/ground_objects/image_raw', 10)
+        self.pub_images = self.create_publisher(Image, '/ground_objects/inference_result_1', 10)
         self.get_logger().info(f'started. bbox_topic={self.bbox_topic}')
     # Callbacks
     def cb_cam_info(self, msg: CameraInfo):
@@ -120,6 +123,10 @@ class BBoxToGroundNED(Node):
             self.C_ned[0] = float(getattr(msg, self.field_pos_x))
             self.C_ned[1] = float(getattr(msg, self.field_pos_y))
             self.C_ned[2] = float(getattr(msg, self.field_pos_z))
+            self.C_refllh[0] = float(getattr(msg, self.field_ref_lat))
+            self.C_refllh[1] = float(getattr(msg, self.field_ref_lon))
+            self.C_refllh[2] = float(getattr(msg, self.field_ref_alt))
+
         except Exception:
             return
         roll  = self._safe_get_deg(msg, self.field_roll,  0.0)
@@ -136,16 +143,28 @@ class BBoxToGroundNED(Node):
         if not name: return default
         try: return float(getattr(msg, name))
         except Exception: return default
+    def cb_image(self, msg: Image):
+        if(self.flag):
+            self.get_logger().info(f"Image Publishing...")
+            self.pub_images.publish(msg)
+            return
+        else:
+            return
     def cb_bboxes(self, msg: Yolov8Inference):
         if self.K is None or self.W is None or self.H is None:
             return
+
         # convert to BBox list
+        self.get_logger().info(f"Received bboxes")
         boxes: List[BBox] = [
             BBox(it.left, it.top, it.right, it.bottom, it.class_name)
             for it in msg.yolov8_inference
         ]
+
         if not boxes:
+            self.flag = False
             return
+
         header = self._derive_header(msg.header)
         # clear markers
         ma = MarkerArray()
@@ -157,8 +176,9 @@ class BBoxToGroundNED(Node):
         fx, fy, cx, cy = self.K[0,0], self.K[1,1], self.K[0,2], self.K[1,2]
         mid = 1
         for b in boxes:
-            if self.cls_filter and b.cls != self.cls_filter:
-                continue
+            self.get_logger().info(f"Processing bbox: {b.l}, {b.t}, {b.r}, {b.b}, {b.cls}")
+            # if self.cls_filter and b.cls != self.cls_filter:
+            #     continue
             u = 0.5 * (b.l + b.r)
             v = min(max(b.b, 0.0), float(self.H - 1))
             x = (u - cx) / fx
@@ -166,11 +186,17 @@ class BBoxToGroundNED(Node):
             d_c = np.array([x, y, 1.0], dtype=float)
             d_n = R_nc @ d_c
             dz = d_n[2]
+            self.get_logger().info(f"Computed d_n: {d_n}, dz: {dz}")
+
             if abs(dz) < 1e-9:
                 continue
+
             t = (self.D_ground - self.C_ned[2]) / dz
+            self.get_logger().info(f"Computed t: {t}")
+
             if t <= 0:
                 continue
+
             P = self.C_ned + t * d_n  # [N,E,D_ground]
             ps = PointStamped()
             ps.header = header
@@ -178,6 +204,12 @@ class BBoxToGroundNED(Node):
             ps.point.y = float(P[1])
             ps.point.z = float(self.D_ground)  # NED Down(+)
             self.pub_points.publish(ps)
+            self.get_logger().info(
+                f"PointStamped position: x={ps.point.x:.3f}, y={ps.point.y:.3f}, z={ps.point.z:.3f}"
+            )
+            if self._image_compare(ps):
+                self.get_logger().info(f"Image Compare Success")
+
             m = Marker()
             m.header = header
             m.ns = 'ground_objects'
@@ -191,7 +223,9 @@ class BBoxToGroundNED(Node):
             m.scale.x = m.scale.y = m.scale.z = 0.5
             m.color.a = 1.0; m.color.r = 1.0; m.color.g = 1.0; m.color.b = 0.0
             ma.markers.append(m)
+
         self.pub_markers.publish(ma)
+
     def _derive_header(self, src_header: Header) -> Header:
         h = Header()
         try:
@@ -203,11 +237,14 @@ class BBoxToGroundNED(Node):
         return h
 
     def _image_compare(self, ps: PointStamped):
-        if np.all(np.abs(ps - self.T_ned) < self.image_threshold):
-            self.get_logger().info(f"Image Compare: True (diff = {np.abs(ps - self.T_ned)})")
+        p_ned = np.array([ps.point.x, ps.point.y, ps.point.z])
+        if np.all(np.abs(p_ned - self.T_ned) < self.image_threshold):
+            self.get_logger().info(f"Image Compare: True (diff = {np.abs(p_ned - self.T_ned)})")
+            self.flag = True
             return True
         else:
-            self.get_logger().warn(f"Image Compare: False (diff = {np.abs(ps - self.T_ned)})")
+            self.get_logger().warn(f"Image Compare: False (diff = {np.abs(p_ned - self.T_ned)})")
+            self.flag = False
             return False
 
 # WGS-84

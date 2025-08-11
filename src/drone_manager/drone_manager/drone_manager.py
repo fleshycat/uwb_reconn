@@ -79,7 +79,7 @@ class DroneManager(Node):
             qos_profile_sensor_data
         )
         self.vehicle_command_publisher = self.create_publisher(
-            VehicleCommandMsg, 
+            VehicleCommandMsg,
             f'{self.topic_prefix_fmu}in/vehicle_command',
             10
         )
@@ -151,9 +151,9 @@ class DroneManager(Node):
             )
             for i in self.system_id_list if i != self.system_id
         ]
-        
+
         self.add_on_set_parameters_callback(self.set_parameters_callback)
-        
+
         # --- OCM Msg ---
         self.ocm_msg = OffboardControlMode()
 
@@ -189,7 +189,7 @@ class DroneManager(Node):
         self.uwb_data_list = []
         self.uwb_threshold = self.get_parameter("uwb_threshold").get_parameter_value().double_value
 
-        # --- ModeHandler --- 
+        # --- ModeHandler ---
         self.mode_handler = ModeHandler()
         self.handle_flag = False
         self.collection_step = 0
@@ -255,7 +255,7 @@ class DroneManager(Node):
             elif param.name == 'formation_k_z':
                 self.f_formation.k_z = param.value
                 self.get_logger().info(f"Formation k_z set to {self.f_formation.k_z}")
-            elif param.name == 'formation_tolerance':   
+            elif param.name == 'formation_tolerance':
                 self.tol = param.value
                 self.get_logger().info(f"Formation tolerance set to {self.tol}")
             elif param.name == 'repulsion_c_rep':
@@ -302,14 +302,14 @@ class DroneManager(Node):
                 self.get_logger().info(f"Monitoring timer period set to {param.value} seconds")
         result.successful = True
         return result
-    
+
     def timer_start(self):
         self.get_logger().info("DroneManager Timer Started")
-        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value  
-        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value  
-        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value  
-        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value  
-        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value  
+        timer_period_ocm =          self.get_parameter("timer_ocm_period").get_parameter_value().double_value
+        timer_period_uwb =          self.get_parameter("timer_uwb_period").get_parameter_value().double_value
+        timer_period_global_path =  self.get_parameter("timer_global_path_period").get_parameter_value().double_value
+        timer_period_mission =      self.get_parameter("timer_mission_period").get_parameter_value().double_value
+        timer_period_monitoring =   self.get_parameter("timer_monitoring_period").get_parameter_value().double_value
         self.timer_uwb =            self.create_timer(timer_period_uwb, self.timer_uwb_callback)
         self.timer_global_path =    self.create_timer(timer_period_global_path, self.timer_global_path_callback)
         self.timer_mission =        self.create_timer(timer_period_mission, self.timer_mission_callback)
@@ -355,7 +355,7 @@ class DroneManager(Node):
             self.traj_setpoint_publisher.publish(traj_setpoint_msg)
             if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y],
                                     target_pos = [self.global_path[0][0], self.global_path[0][1]]
-                                    ) <= self.global_path_threshold:    
+                                    ) <= self.global_path_threshold:
                 self.global_path.pop(0)
                 self.get_logger().error("WayPoint Arrived")
 
@@ -368,10 +368,10 @@ class DroneManager(Node):
         now_timestamp = self.get_clock().now().to_msg().sec
         uwb_pub_msg.header.stamp.sec = self.gcs_timestamp.stamp.sec + (now_timestamp - self.init_timestamp )
         uwb_pub_msg.header.stamp.nanosec = self.get_clock().now().to_msg().nanosec
-        
+
         # Set anchor ID
         uwb_pub_msg.anchor_id = self.system_id
-        
+
         # Default values
         uwb_pub_msg.range = -1
         uwb_pub_msg.rss = 0.0
@@ -390,7 +390,7 @@ class DroneManager(Node):
             height = self.monitoring_msg.pos_z
             square_diff = max(distance**2 - height**2, 0)
             uwb_pub_msg.range   = int(math.sqrt(square_diff) * 1000)    # m → mm
-        
+
         # Mode Value
         uwb_pub_msg.seq = self.mode_handler.get_mode().value
 
@@ -401,8 +401,8 @@ class DroneManager(Node):
         # Drone Ref LLH (RTK-GPS)
         uwb_pub_msg.anchor_pose.orientation.x  = self.monitoring_msg.ref_lat
         uwb_pub_msg.anchor_pose.orientation.y  = self.monitoring_msg.ref_lon
-        uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
-        
+        uwb_pub_msg.anchor_pose.orientation.z  = self.monitoring_msg.ref_alt
+
         # Update the agent UWB range dictionary
         self.agent_uwb_range_dic[f"{self.system_id}"] = uwb_pub_msg
 
@@ -411,7 +411,7 @@ class DroneManager(Node):
 
     def timer_monitoring_pub_callback(self):
         self.monitoring_publisher.publish(self.monitoring_msg)
-    
+
     def timer_motor_pub_callback(self):
         self.motor_publisher.publish(self.motor_msg)
 
@@ -429,13 +429,13 @@ class DroneManager(Node):
             self.handle_COLLECTION()
         if self.mode_handler.is_in_mode(Mode.RETURN):
             self.handle_RETURN()
-        if self.mode_handler.is_in_mode(Mode.COMPLETED):  
+        if self.mode_handler.is_in_mode(Mode.COMPLETED):
             self.handle_COMPLETED()
 
     ## Sub callback ##
     def monitoring_callback(self, msg: Monitoring):
         self.monitoring_msg = msg
-    
+
     def motor_callback(self, msg: ActuatorMotors):
         self.motor_msg = msg
 
@@ -459,7 +459,7 @@ class DroneManager(Node):
         self.change_mode(Mode(msg.data))
 
     ## Particle Filter ##
-    def particle_step(self):        
+    def particle_step(self):
         ## It should run only when the mode is SERACH or HAVE_TARGET ##
         if not (self.mode_handler.is_in_mode(Mode.SEARCH) or self.mode_handler.is_in_mode(Mode.HAVE_TARGET) or self.mode_handler.is_in_mode(Mode.CONVERGED)):
             return
@@ -467,14 +467,14 @@ class DroneManager(Node):
             if not self.mode_handler.is_in_mode(Mode.SEARCH):
                 self.change_mode(Mode.SEARCH)
             return
-        
+
         sensor_positions = [row[0] for row in self.uwb_data_list]
         measurements = [row[1] for row in self.uwb_data_list]
         noise_stds = [row[2] for row in self.uwb_data_list]
-        
+
         self.particle_filter.step(sensor_positions, measurements, noise_stds, [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y])
         self.particle = self.particle_filter.particles
-        
+
         self.target = self.particle_filter.estimate()
         estimate = [self.target[0], self.target[1]]
         self.publish_target()
@@ -519,7 +519,7 @@ class DroneManager(Node):
                     value.range / 1000,
                     value.range / 1000 * 0.03,
                 ])
-    
+
     ## Formation & Repulsion
     def formation_move_agent(self):
         ## It should run only when the mode is HAVE_TARGET ##
@@ -528,13 +528,13 @@ class DroneManager(Node):
 
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
-            idx = int(key)-1 
+            idx = int(key)-1
             agents_pos[idx] = [
                 value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
                 value.anchor_pose.position.z
             ]
-            
+
         grad_formation = self.f_formation.compute(agents_pos)[self.system_id-1]
         ## Check if formation is converged ##
         # err1, err2, err3 = self.f_formation.get_error(agents_pos)
@@ -565,7 +565,7 @@ class DroneManager(Node):
         result_direc = self.set_direction(total_grad)
         speed = min(1000, np.linalg.norm(total_grad))
         dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
-        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        speed_safe = 0.0 if not np.isfinite(speed) else speed
         current_pos=np.array([
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
@@ -577,6 +577,10 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        # dx = self.target[0] - self.monitoring_msg.pos_x
+        # dy = self.target[1] - self.monitoring_msg.pos_y
+        # desired_yaw = math.atan2(dy, dx)
+        # setpoint.yaw = float(desired_yaw)
         self.traj_setpoint_publisher.publish(setpoint)
 
     def is_formation_converged(self, grad_norm):
@@ -590,7 +594,7 @@ class DroneManager(Node):
             #     self.change_mode(Mode.RETURN, delay_seconds=3.0)
             self.change_mode(Mode.RETURN, delay_seconds=3.0)
             return
-    
+
     def compute_weight(self):
         if self.have_target:
             current_pos = np.array([
@@ -617,7 +621,7 @@ class DroneManager(Node):
         def callback(msg):
             self.agent_uwb_range_dic[f'{sys_id}'] = msg
         return callback
-    
+
     def make_target_callback(self, sys_id):
         self.get_logger().info(f"DroneManager {self.system_id} : Create Drone{sys_id} Target Subscriber")
         def callback(msg):
@@ -640,7 +644,7 @@ class DroneManager(Node):
         target_msg.position[2] = target_pos_llh[2]
 
         self.target_publisher.publish(target_msg)
-    
+
     ## Mode Handlers ##
     def handle_COMPLETED(self):
         if self.remain_distance(current_pos = [self.monitoring_msg.pos_x, self.monitoring_msg.pos_y, self.monitoring_msg.pos_z],
@@ -727,7 +731,7 @@ class DroneManager(Node):
             return
         agents_pos = [None]*len(self.system_id_list)
         for key, value in self.agent_uwb_range_dic.items():
-            idx = int(key)-1 
+            idx = int(key)-1
             agents_pos[idx] = [
                 value.anchor_pose.position.x + self.takeoff_offset_dic[key][0],
                 value.anchor_pose.position.y + self.takeoff_offset_dic[key][1],
@@ -758,7 +762,7 @@ class DroneManager(Node):
         result_direc = self.set_direction(total_grad)
         speed = min(1000, np.linalg.norm(total_grad))
         dir_safe = np.nan_to_num(result_direc, nan=0.0, posinf=0.0, neginf=0.0)
-        speed_safe = 0.0 if not np.isfinite(speed) else speed 
+        speed_safe = 0.0 if not np.isfinite(speed) else speed
         current_pos=np.array([
                 self.monitoring_msg.pos_x,
                 self.monitoring_msg.pos_y,
@@ -771,7 +775,7 @@ class DroneManager(Node):
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
         self.traj_setpoint_publisher.publish(setpoint)
-        
+
         remain_distance = np.linalg.norm(
             np.array([self.monitoring_msg.pos_x, self.monitoring_msg.pos_y, self.monitoring_msg.pos_z]) -
             np.array([collection_target[0], collection_target[1], collection_target[2]])
@@ -826,7 +830,7 @@ class DroneManager(Node):
             self.change_ocm_msg_position()
         elif mode == Mode.HAVE_TARGET:
             pass
-    
+
     def change_mode(self, mode, delay_seconds= None):
         if delay_seconds is None:
             result = self.mode_handler.change_mode(mode)
