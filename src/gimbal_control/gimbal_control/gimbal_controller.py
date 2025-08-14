@@ -51,7 +51,7 @@ class PIController:
 
 class GimbalControllerNode(Node):
     def __init__(self, system_id: int = 1):
-        super().__init__('px4_gimbal_controller')
+        super().__init__('gimbal_controller_node')
 
         self.declare_parameter('system_id', 1)
         self.declare_parameter('monitoring_topic', '/fmu/out/monitoring')
@@ -83,7 +83,7 @@ class GimbalControllerNode(Node):
         sensor_qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10,  # 기존의 queue size와 동일하게 설정
+            depth=10,
             durability=DurabilityPolicy.VOLATILE
         )
 
@@ -108,7 +108,7 @@ class GimbalControllerNode(Node):
             sensor_qos_profile
         )
         # Publisher 설정
-        topic_name = f"drone{self.system_id}a8_mini/set_gimbal_attitude"
+        topic_name = self.topic_prefix+self.gimbal_controller_set_topic
         self.gimbal_pub = self.create_publisher(Vector3Stamped, self.topic_prefix+self.gimbal_controller_set_topic, 10)
 
         self.get_logger().info(f"Node started. Publishing gimbal commands to: {topic_name}")

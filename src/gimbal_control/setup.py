@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'siyi_camera'
+package_name = 'gimbal_control'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-          "siyi_camera = siyi_camera.camera_controller:main",
+          "gimbal_control = gimbal_control.gimbal_controller:main",
         ],
     },
 )
