@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-          "gimbal_control = gimbal_control.gimbal_controller:main",
+          "gimbal_controller = gimbal_control.gimbal_controller:main",
         ],
     },
 )

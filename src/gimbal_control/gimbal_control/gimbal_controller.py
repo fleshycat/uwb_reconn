@@ -68,8 +68,8 @@ class GimbalControllerNode(Node):
         # --- PI 컨트롤러 초기화 ---
         # Kp: 오차에 얼마나 빠르게 반응할지 결정
         # Ki: 정상상태 오차(steady-state error)를 없애기 위해 사용
-        self.pi_pitch = PIController(kp=0.7, ki=0.15, integral_min=-5.0, integral_max=5.0, output_min=-90.0, output_max=45.0)
-        self.pi_yaw = PIController(kp=0.7, ki=0.15, integral_min=-5.0, integral_max=5.0, output_min=-120.0, output_max=120.0)
+        self.pi_pitch = PIController(kp=0.7, ki=0.15, integral_min=-5.0, integral_max=5.0, output_min=-80.0, output_max=10.0)
+        self.pi_yaw = PIController(kp=0.7, ki=0.15, integral_min=-5.0, integral_max=5.0, output_min=-100.0, output_max=100.0)
 
         self.last_time = None # 마지막 콜백 실행 시간 저장
 
@@ -89,21 +89,21 @@ class GimbalControllerNode(Node):
 
         self.monitoring_sub = self.create_subscription(
             Monitoring,
-            self.topic_prefix+self.monitoring_topic,  # 실제 모니터링 토픽 이름 맞춰 변경
+            self.topic_prefix+self.monitoring_topic,
             self.monitoring_callback,
             sensor_qos_profile
         )
 
         self.trajectory_sub = self.create_subscription(
             TrajectorySetpoint,
-            self.topic_prefix+self.trajectory_topic,  # 실제 경로 토픽 이름 맞춰 변경
+            self.topic_prefix+self.trajectory_topic,
             self.trajectory_callback,
             sensor_qos_profile
         )
 
         self.gimbal_controller_get_topic = self.create_subscription(
             Vector3Stamped,
-            self.topic_prefix+self.gimbal_controller_get_topic,  # 실제 짐벌 상태 토픽 이름 맞춰 변경
+            self.topic_prefix+self.gimbal_controller_get_topic,
             self.gimbal_control_callback,
             sensor_qos_profile
         )
@@ -143,10 +143,13 @@ class GimbalControllerNode(Node):
 
         target_pose = NED2RPY(target_position, [0, 0, 0])
         target_msg = Vector3Stamped()
+        self.get_logger().info(f"[Trajectory] Target Pose: {target_pose}")
 
         target_msg.vector.x = target_pose[0] - self.monitoring_msg.roll  # roll
-        target_msg.vector.y = -(target_pose[1] - self.monitoring_msg.pitch)  # pitch
+        target_msg.vector.y = target_pose[1] - self.monitoring_msg.pitch  # pitch
         target_msg.vector.z = target_pose[2] - self.monitoring_msg.head  # yaw
+        self.get_logger().info(f"[Trajectory] monitoring_msg: roll={self.monitoring_msg.roll:.2f}, pitch={self.monitoring_msg.pitch:.2f}, yaw={self.monitoring_msg.head:.2f}")
+        self.get_logger().info(f"[Trajectory] Target Vector: {target_msg.vector.x:.2f}, {target_msg.vector.y:.2f}, {target_msg.vector.z:.2f}")
 
         if not self.gimbal_prev_msg.vector.x and not self.gimbal_prev_msg.vector.y and not self.gimbal_prev_msg.vector.z:
             self.get_logger().warn("Gimbal attitude not initialized. Waiting for gimbal data.")
@@ -155,13 +158,14 @@ class GimbalControllerNode(Node):
         error_roll = 0.0  # Roll은 정의되지 않으므로 0으로 설정
         error_pitch = target_msg.vector.y - GimbalPitchGet2Set(self.gimbal_prev_msg.vector.y)
         error_yaw = target_msg.vector.z - self.gimbal_prev_msg.vector.z
+        self.get_logger().info(f"[Gimbal Control] Error: roll={error_roll:.2f}, pitch={error_pitch:.2f}, yaw={error_yaw:.2f}")
 
         roll_cmd = error_roll
         pitch_cmd = self.pi_pitch.update(error_pitch, dt)
         yaw_cmd = self.pi_yaw.update(error_yaw, dt)
 
         gimbal_msg = Vector3Stamped()
-        gimbal_msg.vector.x = roll_cmd  # Roll은 정의되지 않으므로 0으로 설정
+        gimbal_msg.vector.x = roll_cmd  # Roll 명령 (0으로 설정)
         gimbal_msg.vector.y = pitch_cmd  # Pitch 명령
         gimbal_msg.vector.z = yaw_cmd  # Yaw 명령
 
