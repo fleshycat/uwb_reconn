@@ -577,10 +577,10 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
-        # dx = self.target[0] - self.monitoring_msg.pos_x
-        # dy = self.target[1] - self.monitoring_msg.pos_y
-        # desired_yaw = math.atan2(dy, dx)
-        # setpoint.yaw = float(desired_yaw)
+        dx = self.target[0] - self.monitoring_msg.pos_x
+        dy = self.target[1] - self.monitoring_msg.pos_y
+        desired_yaw = math.atan2(dy, dx)
+        setpoint.yaw = float(desired_yaw)
         self.traj_setpoint_publisher.publish(setpoint)
 
     def is_formation_converged(self, grad_norm):
