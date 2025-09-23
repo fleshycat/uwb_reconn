@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<dds>
+    <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+        <participant profile_name="default_participant" is_default_profile="true">
+            <rtps>
+                <builtin>
+                    <discovery_config>
+                        <EDP>STATIC</EDP>
+                        <static_edp_xml_config>file:///home/user/uwb_ws/src/uwb_reconn/src/uwb_sim/config/static_discovery.xml</static_edp_xml_config>
+                    </discovery_config>
+                </builtin>
+                <propertiesPolicy>
+                    <properties>
+                        <property>
+                            <name>dds.discovery.static_edp.exchange_format</name>
+                            <value>v1_Reduced</value>
+                        </property>
+                    </properties>
+                </propertiesPolicy>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>

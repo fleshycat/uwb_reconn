@@ -1,0 +1,24 @@
+<staticdiscovery>
+    <participant>
+        <name>test</name>	
+		<writer>
+            <userId>200</userId>
+            <entityID>201</entityID>
+            <topicName>rt/chatter</topicName>
+            <topicDataType>std_msgs::msg::dds_::String_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+	
+		<reader>
+            <userId>210</userId>
+            <entityID>211</entityID>
+            <topicName>rt/chatter</topicName>
+            <topicDataType>std_msgs::msg::dds_::String_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader> 
+
+		
+    </participant>
+</staticdiscovery>

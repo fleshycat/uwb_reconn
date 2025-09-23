@@ -3,7 +3,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.substitutions import FindExecutable
 from launch_ros.actions import Node
-from launch.actions import ExecuteProcess, OpaqueFunction, IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import ExecuteProcess, OpaqueFunction, IncludeLaunchDescription, DeclareLaunchArgument, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def launch_setup(context, *args, **kwargs):
@@ -71,7 +71,17 @@ def launch_setup(context, *args, **kwargs):
     return nodes_to_start
 
 def generate_launch_description():
+    # Path to the Fast DDS profiles file
+    fastdds_profiles_file = os.path.join(
+        get_package_share_directory('uwb_sim'),
+        'config',
+        'fastdds_profiles.xml'
+    )
+
     return LaunchDescription([
+        # Set the environment variable for Fast DDS
+        SetEnvironmentVariable('FASTRTPS_DEFAULT_PROFILES_FILE', fastdds_profiles_file),
+
         DeclareLaunchArgument('system_id',      default_value='1',              description='Drone System ID'),
         DeclareLaunchArgument('system_id_list', default_value='[1,2,3,4]',      description='All drone system IDs'),
         DeclareLaunchArgument('port_name',      default_value='/dev/ttyUSB0',   description='Serial port'),
