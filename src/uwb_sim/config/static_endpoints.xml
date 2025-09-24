@@ -1,849 +1,770 @@
+<?xml version="1.0" encoding="UTF-8" ?>
 <staticdiscovery>
-    <!-- Drone 1 -->
+    <!-- 
+    ================================================================================
+    Participant Definition
+    - All endpoints for all drones are defined within this single participant.
+    - The participant name must match the name in the fastdds_profiles.xml.
+    - QoS Assumptions: 'SensorData' -> BEST_EFFORT, History Depth '10' -> RELIABLE.
+    ================================================================================
+    -->
     <participant>
-        <name>drone_manager_1</name>
-        <writer>
-            <topicName>rt/drone1/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/fmu/in/trajectory_setpoint</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/manager/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/manager/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone1/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/fmu/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/fmu/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/qhac/manager/in/timestamp</topicName>
-            <topicDataType>std_msgs::msg::dds_::Header_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/manager/in/global_path</topicName>
-            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/manager/in/mode_change</topicName>
-            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>serial_comm_node_1</name>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone3/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone4/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/jfi/out/drone4/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone1/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>linktrack_1</name>
-        <writer>
-            <topicName>rt/drone1/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-    </participant>
-    <participant>
-        <name>MicroXRCEAgent_1</name>
-        <writer>
-            <topicName>rt/drone1/fmu/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone1/fmu/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone1/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/fmu/in/trajectory_setpoint</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
+        <name>drone_participant</name>
 
-    <!-- Drone 2 -->
-    <participant>
-        <name>drone_manager_2</name>
-        <writer>
-            <topicName>rt/drone2/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/fmu/in/trajectory_setpoint</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/manager/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/manager/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone2/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/fmu/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/fmu/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/qhac/manager/in/timestamp</topicName>
-            <topicDataType>std_msgs::msg::dds_::Header_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/manager/in/global_path</topicName>
-            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/manager/in/mode_change</topicName>
-            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>serial_comm_node_2</name>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone3/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone4/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/jfi/out/drone4/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone2/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>linktrack_2</name>
-        <writer>
-            <topicName>rt/drone2/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-    </participant>
-    <participant>
-        <name>MicroXRCEAgent_2</name>
-        <writer>
-            <topicName>rt/drone2/fmu/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone2/fmu/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone2/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/fmu/in/trajectory_setpoint</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
+        <!-- 
+        ================================================================================
+        Endpoints for Drone with system_id = 1
+        ================================================================================
+        -->
 
-    <!-- Drone 3 -->
-    <participant>
-        <name>drone_manager_3</name>
+        <!-- drone_manager Publishers -->
         <writer>
-            <topicName>rt/drone3/fmu/in/offboard_control_mode</topicName>
+            <userId>101</userId>
+            <topicName>drone1/fmu/in/offboard_control_mode</topicName>
             <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone3/fmu/in/trajectory_setpoint</topicName>
+            <userId>102</userId>
+            <topicName>drone1/fmu/in/trajectory_setpoint</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone3/manager/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/manager/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/fmu/in/vehicle_command</topicName>
+            <userId>103</userId>
+            <topicName>drone1/fmu/in/vehicle_command</topicName>
             <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone3/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone3/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/fmu/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/fmu/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/qhac/manager/in/timestamp</topicName>
-            <topicDataType>std_msgs::msg::dds_::Header_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/manager/in/global_path</topicName>
-            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/manager/in/mode_change</topicName>
-            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/jfi/out/drone3/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/jfi/out/drone3/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone3/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone1/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone2/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>serial_comm_node_3</name>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone4/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone3/jfi/out/drone4/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone3/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>linktrack_3</name>
-        <writer>
-            <topicName>rt/drone3/nlink_linktrack_nodeframe2</topicName>
-            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-    </participant>
-    <participant>
-        <name>MicroXRCEAgent_3</name>
-        <writer>
-            <topicName>rt/drone3/fmu/out/monitoring</topicName>
+            <userId>104</userId>
+            <topicName>drone1/manager/out/monitoring</topicName>
             <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone3/fmu/out/actuator_motors</topicName>
+            <userId>105</userId>
+            <topicName>drone1/manager/out/actuator_motors</topicName>
             <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
-        <reader>
-            <topicName>rt/drone3/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
+        <writer>
+            <userId>106</userId>
+            <topicName>drone1/jfi/in/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/fmu/in/trajectory_setpoint</topicName>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>107</userId>
+            <topicName>drone1/jfi/in/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone3/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
+        </writer>
 
-    <!-- Drone 4 -->
-    <participant>
-        <name>drone_manager_4</name>
-        <writer>
-            <topicName>rt/drone4/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/fmu/in/trajectory_setpoint</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/manager/out/monitoring</topicName>
-            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/manager/out/actuator_motors</topicName>
-            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/fmu/in/vehicle_command</topicName>
-            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/in/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/in/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
+        <!-- drone_manager Subscribers -->
         <reader>
-            <topicName>rt/drone4/nlink_linktrack_nodeframe2</topicName>
+            <userId>121</userId>
+            <topicName>drone1/nlink_linktrack_nodeframe2</topicName>
             <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/fmu/out/monitoring</topicName>
+            <userId>122</userId>
+            <topicName>drone1/fmu/out/monitoring</topicName>
             <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/fmu/out/actuator_motors</topicName>
+            <userId>123</userId>
+            <topicName>drone1/fmu/out/actuator_motors</topicName>
             <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/qhac/manager/in/timestamp</topicName>
+            <userId>124</userId>
+            <topicName>qhac/manager/in/timestamp</topicName>
             <topicDataType>std_msgs::msg::dds_::Header_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/manager/in/global_path</topicName>
+            <userId>125</userId>
+            <topicName>drone1/manager/in/global_path</topicName>
             <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/manager/in/mode_change</topicName>
+            <userId>126</userId>
+            <topicName>drone1/manager/in/mode_change</topicName>
             <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone1/jfi/out/drone4/ranging</topicName>
+            <userId>132</userId>
+            <topicName>drone2/jfi/out/drone1/ranging</topicName>
             <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone2/jfi/out/drone4/ranging</topicName>
+            <userId>133</userId>
+            <topicName>drone3/jfi/out/drone1/ranging</topicName>
             <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone3/jfi/out/drone4/ranging</topicName>
+            <userId>134</userId>
+            <topicName>drone4/jfi/out/drone1/ranging</topicName>
             <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone1/jfi/out/drone4/target</topicName>
+            <userId>142</userId>
+            <topicName>drone2/jfi/out/drone1/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone2/jfi/out/drone4/target</topicName>
+            <userId>143</userId>
+            <topicName>drone3/jfi/out/drone1/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone3/jfi/out/drone4/target</topicName>
+            <userId>144</userId>
+            <topicName>drone4/jfi/out/drone1/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
-    </participant>
-    <participant>
-        <name>serial_comm_node_4</name>
+
+        <!-- serial_comm_node & linktrack Publishers -->
         <writer>
-            <topicName>rt/drone4/jfi/out/drone1/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/out/drone2/ranging</topicName>
-            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/out/drone3/ranging</topicName>
+            <userId>151</userId>
+            <topicName>drone1/jfi/out/drone2/ranging</topicName>
             <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone4/jfi/out/drone1/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/out/drone2/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <writer>
-            <topicName>rt/drone4/jfi/out/drone3/target</topicName>
-            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
-            <topicKind>NO_KEY</topicKind>
-            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </writer>
-        <reader>
-            <topicName>rt/drone4/jfi/in/ranging</topicName>
+            <userId>152</userId>
+            <topicName>drone1/jfi/out/drone3/ranging</topicName>
             <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-        <reader>
-            <topicName>rt/drone4/jfi/in/target</topicName>
+        </writer>
+        <writer>
+            <userId>153</userId>
+            <topicName>drone1/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>154</userId>
+            <topicName>drone1/jfi/out/drone2/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
-        </reader>
-    </participant>
-    <participant>
-        <name>linktrack_4</name>
+        </writer>
         <writer>
-            <topicName>rt/drone4/nlink_linktrack_nodeframe2</topicName>
+            <userId>155</userId>
+            <topicName>drone1/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>156</userId>
+            <topicName>drone1/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>161</userId>
+            <topicName>drone1/nlink_linktrack_nodeframe2</topicName>
             <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
-    </participant>
-    <participant>
-        <name>MicroXRCEAgent_4</name>
+
+        <!-- 
+        ================================================================================
+        Endpoints for Drone with system_id = 2
+        ================================================================================
+        -->
+
+        <!-- drone_manager Publishers -->
         <writer>
-            <topicName>rt/drone4/fmu/out/monitoring</topicName>
+            <userId>201</userId>
+            <topicName>drone2/fmu/in/offboard_control_mode</topicName>
+            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>202</userId>
+            <topicName>drone2/fmu/in/trajectory_setpoint</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>203</userId>
+            <topicName>drone2/fmu/in/vehicle_command</topicName>
+            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>204</userId>
+            <topicName>drone2/manager/out/monitoring</topicName>
             <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
         <writer>
-            <topicName>rt/drone4/fmu/out/actuator_motors</topicName>
+            <userId>205</userId>
+            <topicName>drone2/manager/out/actuator_motors</topicName>
             <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </writer>
+        <writer>
+            <userId>206</userId>
+            <topicName>drone2/jfi/in/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>207</userId>
+            <topicName>drone2/jfi/in/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
+        <!-- drone_manager Subscribers -->
         <reader>
-            <topicName>rt/drone4/fmu/in/offboard_control_mode</topicName>
-            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
+            <userId>221</userId>
+            <topicName>drone2/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>222</userId>
+            <topicName>drone2/fmu/out/monitoring</topicName>
+            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>223</userId>
+            <topicName>drone2/fmu/out/actuator_motors</topicName>
+            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>225</userId>
+            <topicName>drone2/manager/in/global_path</topicName>
+            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/fmu/in/trajectory_setpoint</topicName>
+            <userId>226</userId>
+            <topicName>drone2/manager/in/mode_change</topicName>
+            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>231</userId>
+            <topicName>drone1/jfi/out/drone2/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>233</userId>
+            <topicName>drone3/jfi/out/drone2/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>234</userId>
+            <topicName>drone4/jfi/out/drone2/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>241</userId>
+            <topicName>drone1/jfi/out/drone2/target</topicName>
             <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
         <reader>
-            <topicName>rt/drone4/fmu/in/vehicle_command</topicName>
+            <userId>243</userId>
+            <topicName>drone3/jfi/out/drone2/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>244</userId>
+            <topicName>drone4/jfi/out/drone2/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+
+        <!-- serial_comm_node & linktrack Publishers -->
+        <writer>
+            <userId>251</userId>
+            <topicName>drone2/jfi/out/drone1/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>253</userId>
+            <topicName>drone2/jfi/out/drone3/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>254</userId>
+            <topicName>drone2/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>255</userId>
+            <topicName>drone2/jfi/out/drone1/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>256</userId>
+            <topicName>drone2/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>257</userId>
+            <topicName>drone2/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>261</userId>
+            <topicName>drone2/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
+        <!-- 
+        ================================================================================
+        Endpoints for Drone with system_id = 3
+        ================================================================================
+        -->
+
+        <!-- drone_manager Publishers -->
+        <writer>
+            <userId>301</userId>
+            <topicName>drone3/fmu/in/offboard_control_mode</topicName>
+            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>302</userId>
+            <topicName>drone3/fmu/in/trajectory_setpoint</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>303</userId>
+            <topicName>drone3/fmu/in/vehicle_command</topicName>
             <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
             <topicKind>NO_KEY</topicKind>
             <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>304</userId>
+            <topicName>drone3/manager/out/monitoring</topicName>
+            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>305</userId>
+            <topicName>drone3/manager/out/actuator_motors</topicName>
+            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>306</userId>
+            <topicName>drone3/jfi/in/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>307</userId>
+            <topicName>drone3/jfi/in/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
+        <!-- drone_manager Subscribers -->
+        <reader>
+            <userId>321</userId>
+            <topicName>drone3/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
         </reader>
+        <reader>
+            <userId>322</userId>
+            <topicName>drone3/fmu/out/monitoring</topicName>
+            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>323</userId>
+            <topicName>drone3/fmu/out/actuator_motors</topicName>
+            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>325</userId>
+            <topicName>drone3/manager/in/global_path</topicName>
+            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>326</userId>
+            <topicName>drone3/manager/in/mode_change</topicName>
+            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>331</userId>
+            <topicName>drone1/jfi/out/drone3/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>332</userId>
+            <topicName>drone2/jfi/out/drone3/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>334</userId>
+            <topicName>drone4/jfi/out/drone3/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>341</userId>
+            <topicName>drone1/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>342</userId>
+            <topicName>drone2/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>344</userId>
+            <topicName>drone4/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+
+        <!-- serial_comm_node & linktrack Publishers -->
+        <writer>
+            <userId>351</userId>
+            <topicName>drone3/jfi/out/drone1/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>352</userId>
+            <topicName>drone3/jfi/out/drone2/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>354</userId>
+            <topicName>drone3/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>355</userId>
+            <topicName>drone3/jfi/out/drone1/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>356</userId>
+            <topicName>drone3/jfi/out/drone2/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>357</userId>
+            <topicName>drone3/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>361</userId>
+            <topicName>drone3/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
+        <!-- 
+        ================================================================================
+        Endpoints for Drone with system_id = 4
+        ================================================================================
+        -->
+
+        <!-- drone_manager Publishers -->
+        <writer>
+            <userId>401</userId>
+            <topicName>drone4/fmu/in/offboard_control_mode</topicName>
+            <topicDataType>px4_msgs::msg::dds_::OffboardControlMode_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>402</userId>
+            <topicName>drone4/fmu/in/trajectory_setpoint</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>403</userId>
+            <topicName>drone4/fmu/in/vehicle_command</topicName>
+            <topicDataType>px4_msgs::msg::dds_::VehicleCommand_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>404</userId>
+            <topicName>drone4/manager/out/monitoring</topicName>
+            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>405</userId>
+            <topicName>drone4/manager/out/actuator_motors</topicName>
+            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>406</userId>
+            <topicName>drone4/jfi/in/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>407</userId>
+            <topicName>drone4/jfi/in/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
+        <!-- drone_manager Subscribers -->
+        <reader>
+            <userId>421</userId>
+            <topicName>drone4/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>422</userId>
+            <topicName>drone4/fmu/out/monitoring</topicName>
+            <topicDataType>px4_msgs::msg::dds_::Monitoring_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>423</userId>
+            <topicName>drone4/fmu/out/actuator_motors</topicName>
+            <topicDataType>px4_msgs::msg::dds_::ActuatorMotors_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>425</userId>
+            <topicName>drone4/manager/in/global_path</topicName>
+            <topicDataType>px4_msgs::msg::dds_::GlobalPath_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>RELIABLE_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>426</userId>
+            <topicName>drone4/manager/in/mode_change</topicName>
+            <topicDataType>std_msgs::msg::dds_::UInt8_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>431</userId>
+            <topicName>drone1/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>432</userId>
+            <topicName>drone2/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>433</userId>
+            <topicName>drone3/jfi/out/drone4/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>441</userId>
+            <topicName>drone1/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>442</userId>
+            <topicName>drone2/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+        <reader>
+            <userId>443</userId>
+            <topicName>drone3/jfi/out/drone4/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </reader>
+
+        <!-- serial_comm_node & linktrack Publishers -->
+        <writer>
+            <userId>451</userId>
+            <topicName>drone4/jfi/out/drone1/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>452</userId>
+            <topicName>drone4/jfi/out/drone2/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>453</userId>
+            <topicName>drone4/jfi/out/drone3/ranging</topicName>
+            <topicDataType>uwb_msgs::msg::dds_::Ranging_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>454</userId>
+            <topicName>drone4/jfi/out/drone1/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>455</userId>
+            <topicName>drone4/jfi/out/drone2/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>456</userId>
+            <topicName>drone4/jfi/out/drone3/target</topicName>
+            <topicDataType>px4_msgs::msg::dds_::TrajectorySetpoint_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+        <writer>
+            <userId>461</userId>
+            <topicName>drone4/nlink_linktrack_nodeframe2</topicName>
+            <topicDataType>nlink_parser_ros2_interfaces::msg::dds_::LinktrackNodeframe2_</topicDataType>
+            <topicKind>NO_KEY</topicKind>
+            <reliabilityQos>BEST_EFFORT_RELIABILITY_QOS</reliabilityQos>
+        </writer>
+
     </participant>
 </staticdiscovery>
