@@ -2,6 +2,11 @@ import threading
 
 from enum import Enum
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from drone_manager.drone_manager import DroneManager
+
 class Mode(Enum):
     QHAC = 0
     SEARCH = 1
@@ -13,9 +18,10 @@ class Mode(Enum):
     DONE = 7
 
 class ModeHandler():
-    def __init__(self):
+    def __init__(self, drone_manager: "DroneManager"):
         self._timer = None
         self.mode = Mode.QHAC
+        self.drone_manager = drone_manager
 
     def _on_timer_finish(self, mode):
         self._timer = None
@@ -37,9 +43,11 @@ class ModeHandler():
         if mode == Mode.QHAC:
             self.collection_step = 0
         elif mode == Mode.SEARCH:                       ## Search Mode is agents searching for target
-            self.have_target = False
+            self.drone_manager.have_target = False
+            self.drone_manager.target = []
+            self.drone_manager.desired_yaw = 0.0
         elif mode == Mode.HAVE_TARGET:                  ## Have Target Mode is agents have target and adjust formation
-            self.have_target = True
+            self.drone_manager.have_target = True
             # self.change_ocm_msg_velocity()
         elif mode == Mode.COLLECTION:                   ## Collection Mode is agents collecting target
             pass
