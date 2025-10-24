@@ -13,9 +13,10 @@ for i in 1 2 3 4; do
   # ros2 param set /drone_manager${i} weight_table "[0,1,1, 10,1,0, 10,1,2]"
   # ros2 param set /drone_manager${i} num_particles 500
   # ros2 param set /drone_manager${i} uwb_threshold 10.0
-  ros2 param set /drone_manager${i} timer_ocm_period 0.1
-  ros2 param set /drone_manager${i} timer_uwb_period 0.1
-  ros2 param set /drone_manager${i} timer_global_path_period 0.1
-  ros2 param set /drone_manager${i} timer_mission_period 0.05
-  ros2 param set /drone_manager${i} timer_monitoring_period 1.0
+  #ros2 param set /drone_manager${i} timer_ocm_period 0.1
+  #ros2 param set /drone_manager${i} timer_uwb_period 0.1
+  #ros2 param set /drone_manager${i} timer_global_path_period 0.1
+  #ros2 param set /drone_manager${i} timer_mission_period 0.05
+  #ros2 param set /drone_manager${i} timer_monitoring_period 1.0
+  ros2 param set /drone_manager${i} return_hold_time 5.0
 done
