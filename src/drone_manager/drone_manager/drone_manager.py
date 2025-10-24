@@ -22,6 +22,7 @@ from drone_manager.mode_handler import ModeHandler, Mode
 
 import math
 import numpy as np
+
 class DroneManager(Node):
     def __init__(self):
         super().__init__("drone_manager")
@@ -92,6 +93,8 @@ class DroneManager(Node):
         self.target_bound = self.formation_side_length / (2.0 * math.sin(math.pi / len(self.system_id_list)))
         weight_table = self.get_parameter("weight_table").get_parameter_value().integer_array_value
         self.weight_table = [(weight_table[i], weight_table[i+1], weight_table[i+2]) for i in range(0, len(weight_table), 3)]
+        self.desired_yaw = 0.0
+        self.return_hold_time = self.get_parameter("return_hold_time").get_parameter_value().double_value
         
         ## Particle Filter ##
         self.num_particles = self.get_parameter("num_particles").get_parameter_value().integer_value
@@ -102,7 +105,7 @@ class DroneManager(Node):
         self.uwb_threshold = self.get_parameter("uwb_threshold").get_parameter_value().double_value
 
         ## ModeHandler ##
-        self.mode_handler = ModeHandler()
+        self.mode_handler = ModeHandler(self)
         self.handle_flag = False
         self.collection_step = 0
         
@@ -126,6 +129,7 @@ class DroneManager(Node):
         self.declare_parameter("formation_k_shape", 4.0)
         self.declare_parameter("formation_k_z", 4.0)
         self.declare_parameter("formation_tolerance", 1.5)
+        self.declare_parameter("return_hold_time", 10.0)
         # Repulsion and target parameters
         self.declare_parameter("repulsion_c_rep", 5.0)  # Repulsion constant
         self.declare_parameter("repulsion_cutoff", 4.0)  # Cutoff distance for repulsion
@@ -212,6 +216,9 @@ class DroneManager(Node):
                 self.timer_monitoring.cancel()
                 self.timer_monitoring = self.create_timer(param.value, self.timer_monitoring_pub_callback)
                 self.get_logger().info(f"Monitoring timer period set to {param.value} seconds")
+            elif param.name == 'return_hold_time':
+                self.return_hold_time = float(param.value)
+                self.get_logger().info(f"Return hold time set to {self.return_hold_time} seconds")
 
         result.successful = True
         return result
@@ -436,7 +443,7 @@ class DroneManager(Node):
             - w_target    * grad_target
         )
         grad_norm = np.linalg.norm(total_grad)
-        self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
+        # self.get_logger().info(f"DroneManager {self.system_id} : grad_norm : {grad_norm}")
         self.is_formation_converged(grad_norm)
         total_grad = np.nan_to_num(total_grad)
         result_direc = self.set_direction(total_grad)
@@ -454,6 +461,7 @@ class DroneManager(Node):
         setpoint = TrajectorySetpointMsg()
         setpoint.timestamp = int(self.get_clock().now().nanoseconds // 1000)
         setpoint.position = [float(next_pos[0]), float(next_pos[1]), float(next_pos[2])]
+        setpoint.yaw = self.desired_yaw
         direction = TrajectorySetpointMsg()
         direction.velocity = [total_grad[0], total_grad[1], total_grad[2]]
         self.total_gradient_publisher.publish(direction)
@@ -463,11 +471,15 @@ class DroneManager(Node):
         if grad_norm < self.tol:
             self.change_mode(Mode.CONVERGED)
         if all(v.error_estimation == Mode.CONVERGED.value for v in self.agent_uwb_range_dic.values()):
-            self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
+            # self.get_logger().info(f"DroneManager {self.system_id} : Formation Converged")
             if self.system_id == self.system_id_list[0]:
-                self.change_mode(Mode.COLLECTION, delay_seconds=2.0)
+                dx = self.target[0] - self.monitoring_msg.pos_x
+                dy = self.target[1] - self.monitoring_msg.pos_y
+                desired_yaw = math.atan2(dy, dx)
+                self.desired_yaw = float(desired_yaw)
+                self.change_mode(Mode.RETURN, delay_seconds=self.return_hold_time)
             else:
-                self.change_mode(Mode.RETURN, delay_seconds=4.0)
+                self.change_mode(Mode.RETURN, delay_seconds=self.return_hold_time)
             return
         
     def compute_weight(self):
@@ -722,14 +734,18 @@ class DroneManager(Node):
         if delay_seconds is None:
             result = self.mode_handler.change_mode(mode)
             if result == -1:
+                pass
                 self.get_logger().warn(f"DroneManager {self.system_id} : Mode Change Failed to {Mode(mode)}")
             else:
+                
                 self.get_logger().info(f"DroneManager {self.system_id} : Mode Changed to {Mode(mode)}")
         else:
             result = self.mode_handler.change_mode_delay(mode, delay_seconds)
             if result == -1:
+                pass
                 self.get_logger().warn(f"DroneManager {self.system_id} : Mode Change Delay Failed to {Mode(mode)}")
             else:
+                
                 self.get_logger().info(f"DroneManager {self.system_id} : Mode Change Delay Start... {Mode(mode)} | {delay_seconds} seconds")
 
 # WGS-84 
