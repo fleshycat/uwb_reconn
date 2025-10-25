@@ -212,8 +212,8 @@ class DroneManager(Node):
         self.declare_parameter('mission_zlevel', 3.0)
         # Formation parameters
         self.declare_parameter("formation_k_scale", 0.0)
-        self.declare_parameter("formation_k_pair", 4.0)
-        self.declare_parameter("formation_k_shape", 4.0)
+        self.declare_parameter("formation_k_pair", 2.0)
+        self.declare_parameter("formation_k_shape", 2.0)
         self.declare_parameter("formation_k_z", 4.0)
         self.declare_parameter("formation_tolerance", 1.5)
         self.declare_parameter("return_hold_time", 10.0)
