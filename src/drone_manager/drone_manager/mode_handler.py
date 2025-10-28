@@ -43,6 +43,7 @@ class ModeHandler():
         if mode == Mode.QHAC:
             self.collection_step = 0
         elif mode == Mode.SEARCH:                       ## Search Mode is agents searching for target
+            self.drone_manager.particle_filter.set_num_particles(self.drone_manager.num_particles)
             self.drone_manager.have_target = False
             self.drone_manager.target = []
             self.drone_manager.desired_yaw = 0.0

@@ -185,7 +185,7 @@ class DroneManager(Node):
 
         # --- Particle Filter ---
         self.num_particles = self.get_parameter("num_particles").get_parameter_value().integer_value
-        self.particle_filter = ParticleFilter(num_particles=self.num_particles)
+        self.particle_filter = ParticleFilter(num_particles=self.num_particles, logger=self.get_logger())
         self.target = []
         self.have_target = False
         self.uwb_data_list = []
