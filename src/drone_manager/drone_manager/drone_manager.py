@@ -467,7 +467,7 @@ class DroneManager(Node):
 
     ## Particle Filter ##
     def particle_step(self):
-        ## It should run only when the mode is SERACH or HAVE_TARGET ##
+        ## It should run only when the mode is SEARCH or HAVE_TARGET or CONVERGED ##
         if not (self.mode_handler.is_in_mode(Mode.SEARCH) or self.mode_handler.is_in_mode(Mode.HAVE_TARGET) or self.mode_handler.is_in_mode(Mode.CONVERGED)):
             return
         if len(self.uwb_data_list) <= 0:
