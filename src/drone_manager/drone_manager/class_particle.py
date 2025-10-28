@@ -4,15 +4,18 @@ import numpy as np
 
 class ParticleFilter:
 
-    def __init__(self, num_particles):
+    def __init__(self, num_particles, logger=None):
         self.num_particles = num_particles
         self.particles = None
         self.weights   = None
         self.process_noise_std = 0.3
         self.region_radius = 20.0
         self.step_counter = 0
-    
+        self.logger = logger
+        self.logger.info(f"ParticleFilter created with {num_particles} particles.") if self.logger else None
+
     def set_num_particles(self, num_particles):
+        self.logger.info(f"ParticleFilter: Set number of particles to {num_particles}.") if self.logger else None
         self.num_particles = num_particles
         self.particles = None
         self.weights   = None
