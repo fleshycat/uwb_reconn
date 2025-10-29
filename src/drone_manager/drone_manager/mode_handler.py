@@ -41,6 +41,7 @@ class ModeHandler():
         if mode == self.mode:
             return
         if mode == Mode.QHAC:
+            self.drone_manager.calculate_takeoff_offset()
             self.collection_step = 0
         elif mode == Mode.SEARCH:                       ## Search Mode is agents searching for target
             self.drone_manager.particle_filter.set_num_particles(self.drone_manager.num_particles)
