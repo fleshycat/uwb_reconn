@@ -453,7 +453,7 @@ class DroneManager(Node):
 
     def publish_mode_status(self, mode):
         mode_msg = UInt8()
-        mode_msg.data = mode.value
+        mode_msg.data = 10
         self.mode_status_publisher.publish(mode_msg)
         
     ### Mission Progress ####
