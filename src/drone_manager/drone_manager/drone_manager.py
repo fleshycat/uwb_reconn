@@ -85,6 +85,17 @@ class DroneManager(Node):
             f'{self.topic_prefix_fmu}in/vehicle_command',
             10
         )
+        self.manager_target_publisher = self.create_publisher(
+            TrajectorySetpointMsg,
+            f"{self.topic_prefix_manager}out/target",
+            qos_profile_sensor_data
+        )
+        self.mode_status_publisher = self.create_publisher(
+            UInt8,
+            f"{self.topic_prefix_manager}out/mode",
+            10
+        )
+        
         # J-Fi Publisher
         self.uwb_ranging_publisher = self.create_publisher(
             Ranging,
@@ -323,6 +334,7 @@ class DroneManager(Node):
         self.timer_ocm =            self.create_timer(timer_period_ocm, self.timer_ocm_callback)
         self.timer_monitoring =     self.create_timer(timer_period_monitoring, self.timer_monitoring_pub_callback)
         self.timer_motor =          self.create_timer(1.0, self.timer_motor_pub_callback)
+        self.timer_manager_target = self.create_timer(1.0, self.timer_manager_target_pub_callback)
 
     def get_desired_formation(self, side_length):
         n = len(self.system_id_list)
@@ -421,7 +433,29 @@ class DroneManager(Node):
 
     def timer_motor_pub_callback(self):
         self.motor_publisher.publish(self.motor_msg)
+    
+    def timer_manager_target_pub_callback(self):
+        if len(self.target) == 0:
+            return
+        target_msg = TrajectorySetpointMsg()
+        target_pos_ned = [self.target[0], self.target[1], 0.1]
+        ref_llh = [
+            self.monitoring_msg.ref_lat,
+            self.monitoring_msg.ref_lon,
+            self.monitoring_msg.ref_alt
+        ]
+        target_pos_llh = NED2LLH(NED=target_pos_ned, ref_LLH=ref_llh)
 
+        target_msg.position[0] = target_pos_llh[0]
+        target_msg.position[1] = target_pos_llh[1]
+        target_msg.position[2] = target_pos_llh[2]
+        self.manager_target_publisher.publish(target_msg)
+
+    def publish_mode_status(self, mode):
+        mode_msg = UInt8()
+        mode_msg.data = mode.value
+        self.mode_status_publisher.publish(mode_msg)
+        
     ### Mission Progress ####
     def timer_mission_callback(self):
         if len(self.takeoff_offset_dic) != 4:
@@ -811,6 +845,7 @@ class DroneManager(Node):
             self.monitoring_msg.ref_lon,
             self.monitoring_msg.ref_alt
         ]
+        no_error = True
         for key, value in self.agent_uwb_range_dic.items():
             try:
                 if value.anchor_pose.orientation.x == 0.0:
@@ -825,7 +860,10 @@ class DroneManager(Node):
                 NED = LLH2NED(LLH, ref_LLH)
                 self.takeoff_offset_dic[f"{key}"] = NED
             except Exception as e:
+                no_error = False
                 self.get_logger().warn(f"Key {key} skipped: {e}")
+        if no_error:
+            self.get_logger().info(f"DroneManager {self.system_id} : Takeoff Offsets Calculated: {self.takeoff_offset_dic}")
 
     def remain_distance(self, current_pos, target_pos):
         return math.sqrt(

@@ -54,7 +54,7 @@ class ModeHandler():
         elif mode == Mode.COLLECTION:                   ## Collection Mode is agents collecting target
             pass
         elif mode == Mode.RETURN:                       ## Return Mode is agents returning to home position
-            pass
+            self.drone_manager.publish_mode_status(mode)
         elif mode == Mode.COMPLETED:                      ## Landing Mode is agents landing
             pass
         self.mode = mode
