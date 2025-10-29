@@ -62,7 +62,7 @@ def launch_setup(context, *args, **kwargs):
     )
     
     nodes_to_start = [
-        xrce_agent_process,
+        # xrce_agent_process,
         drone_manager_node,
         linktrack_launch,
         serial_comm,
