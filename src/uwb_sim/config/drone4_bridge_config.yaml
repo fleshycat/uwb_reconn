@@ -1,0 +1,25 @@
+# Drone4 Domain Bridge Configuration
+# Bridges topics between GCS (Domain 0) and Drone4 (Domain 4)
+name: drone4_bridge
+from_domain: 0
+to_domain: 4
+
+topics:
+  # From GCS (Domain 0) to Drone4 (Domain 4)
+  /drone4/fmu/in/vehicle_command:
+    type: px4_msgs/msg/VehicleCommand
+
+  /drone4/manager/in/global_path:
+    type: px4_msgs/msg/GlobalPath
+
+  /drone4/manager/in/mode_change:
+    type: std_msgs/msg/UInt8
+
+  # From Drone4 (Domain 4) to GCS (Domain 0) - reversed
+  /drone4/manager/out/actuator_motors:
+    type: px4_msgs/msg/ActuatorMotors
+    reversed: True
+
+  /drone4/manager/out/monitoring:
+    type: px4_msgs/msg/Monitoring
+    reversed: True
