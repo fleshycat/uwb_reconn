@@ -61,11 +61,26 @@ def launch_setup(context, *args, **kwargs):
         ]
     )
     
+    # ROS Domain Bridge Node
+    pkg_share = get_package_share_directory('uwb_sim')
+
+    domain_bridge_node = Node(
+        package='domain_bridge',
+        executable='domain_bridge',
+        name='bridge_node',
+        output='screen',
+        # additional_env={'ROS_DOMAIN_ID': f'{system_id}'},
+        arguments=[
+            os.path.join(pkg_share, 'config', f'drone{system_id}_bridge_config.yaml')
+        ]
+    )
+
     nodes_to_start = [
         # xrce_agent_process,
         drone_manager_node,
         linktrack_launch,
         serial_comm,
+        domain_bridge_node,
     ]
 
     return nodes_to_start
