@@ -51,7 +51,11 @@ class ModeHandler():
         elif mode == Mode.HAVE_TARGET:                  ## Have Target Mode is agents have target and adjust formation
             self.drone_manager.have_target = True
             # self.change_ocm_msg_velocity()
+            self.drone_manager.publish_mode_status(mode)
+        elif mode == Mode.CONVERGED:                  ## Converged Mode is agents converging to target
+            self.drone_manager.publish_mode_status(mode)
         elif mode == Mode.COLLECTION:                   ## Collection Mode is agents collecting target
+            self.drone_manager.publish_mode_status(mode)
             pass
         elif mode == Mode.RETURN:                       ## Return Mode is agents returning to home position
             self.drone_manager.publish_mode_status(mode)

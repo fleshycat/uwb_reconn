@@ -9,6 +9,9 @@ topics:
   /drone1/fmu/in/vehicle_command:
     type: px4_msgs/msg/VehicleCommand
 
+  /drone1/fmu/in/trajectory_setpoint:
+    type: px4_msgs/msg/TrajectorySetpoint
+
   /drone1/manager/in/global_path:
     type: px4_msgs/msg/GlobalPath
 

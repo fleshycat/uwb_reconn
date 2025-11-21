@@ -453,7 +453,7 @@ class DroneManager(Node):
 
     def publish_mode_status(self, mode):
         mode_msg = UInt8()
-        mode_msg.data = 10
+        mode_msg.data = mode.value
         self.mode_status_publisher.publish(mode_msg)
         
     ### Mission Progress ####
@@ -634,6 +634,7 @@ class DroneManager(Node):
                 dy = self.target[1] - self.monitoring_msg.pos_y
                 desired_yaw = math.atan2(dy, dx)
                 self.desired_yaw = float(desired_yaw)
+                self.publish_mode_status(Mode.CONVERGED)
                 self.change_mode(Mode.RETURN, delay_seconds=self.return_hold_time)
             else:
                 self.change_mode(Mode.RETURN, delay_seconds=self.return_hold_time)
